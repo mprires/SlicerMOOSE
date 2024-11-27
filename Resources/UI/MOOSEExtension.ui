@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>MOOSEExtension</class>
+ <widget class="QWidget" name="MOOSEExtension">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>400</width>
+    <height>300</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>MOOSE Extension</string>
+  </property>
+  <layout class="QVBoxLayout" name="verticalLayout">
+   <!-- Input Volume -->
+   <item>
+    <widget class="qMRMLNodeComboBox" name="inputSelector">
+     <property name="toolTip">
+      <string>Select the input image to process.</string>
+     </property>
+     <property name="nodeTypes">
+      <stringlist>
+       <string>vtkMRMLScalarVolumeNode</string>
+      </stringlist>
+     </property>
+     <property name="showChildNodeTypes">
+      <bool>false</bool>
+     </property>
+     <property name="noneEnabled">
+      <bool>false</bool>
+     </property>
+     <property name="selectNodeUponCreation">
+      <bool>true</bool>
+     </property>
+     <property name="showHidden">
+      <bool>false</bool>
+     </property>
+     <property name="renameEnabled">
+      <bool>true</bool>
+     </property>
+     <property name="addEnabled">
+      <bool>false</bool>
+     </property>
+    </widget>
+   </item>
+
+   <!-- Model Selection -->
+   <item>
+    <widget class="QComboBox" name="modelsSelector">
+     <property name="toolTip">
+      <string>Select the segmentation model(s) to use.</string>
+     </property>
+     <property name="editable">
+      <bool>false</bool>
+     </property>
+     <item>
+      <property name="text">
+       <string>clin_ct_organs</string>
+      </property>
+     </item>
+     <item>
+      <property name="text">
+       <string>clin_ct_ribs</string>
+      </property>
+     </item>
+    </widget>
+   </item>
+
+   <!-- Output Directory -->
+   <item>
+    <widget class="ctkDirectoryButton" name="outputDirectoryButton">
+     <property name="toolTip">
+      <string>Select the output directory to save the results.</string>
+     </property>
+    </widget>
+   </item>
+
+   <!-- CUDA Acceleration -->
+   <item>
+    <widget class="QCheckBox" name="useCudaCheckbox">
+     <property name="text">
+      <string>Use CUDA (GPU Acceleration)</string>
+     </property>
+     <property name="toolTip">
+      <string>Enable this option for faster processing if GPU is available.</string>
+     </property>
+    </widget>
+   </item>
+
+   <!-- Run Button -->
+   <item>
+    <widget class="QPushButton" name="runButton">
+     <property name="text">
+      <string>Run Segmentation</string>
+     </property>
+     <property name="enabled">
+      <bool>true</bool>
+     </property>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>
+
