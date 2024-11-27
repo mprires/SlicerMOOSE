@@ -16,13 +16,14 @@ class MOOSEExtension(ScriptedLoadableModule):
         super().__init__(parent)
         self.parent.title = "MOOSE Extension"
         self.parent.categories = ["Segmentation"]
-        self.parent.contributors = ["Lalith Kumar Shiyam Sundar, PhD"]
+        self.parent.contributors = ["Manuel Pires"]
         self.parent.helpText = """
         This extension integrates the MOOSE segmentation tool into 3D Slicer for multi-organ PET/CT segmentation.
         """
         self.parent.acknowledgementText = """
         Developed as part of the ENHANCE-PET project.
         """
+
 
 class MOOSEExtensionWidget(ScriptedLoadableModuleWidget):
     def setup(self):
@@ -38,6 +39,7 @@ class MOOSEExtensionWidget(ScriptedLoadableModuleWidget):
 
         self.ui.inputSelector.setMRMLScene(slicer.mrmlScene)  # Ensure the scene is connected
         self.ui.runButton.connect('clicked()', self.onRunButtonClicked)
+        self.originalInputPath = None
 
     def updateRunButtonState(self):
         """Enable the Run button only if inputs are valid."""
@@ -45,6 +47,15 @@ class MOOSEExtensionWidget(ScriptedLoadableModuleWidget):
             self.ui.inputSelector.currentNode() is not None and
             os.path.isdir(self.ui.outputDirectoryButton.directory)
         )
+
+
+    def getOriginalInputPath(self, inputNode):
+        if not self.originalInputPath:
+            storageNode = inputNode.GetStorageNode()
+            if not storageNode or not storageNode.GetFileName():
+                raise ValueError("Input volume does not have an associated file on disk.")
+            self.originalInputPath = storageNode.GetFileName()  # Cache the original path
+
 
     def onRunButtonClicked(self):
         """Run the segmentation."""
@@ -57,12 +68,13 @@ class MOOSEExtensionWidget(ScriptedLoadableModuleWidget):
             slicer.util.errorDisplay("Please select an input volume and output directory.")
             return
 
+        self.getOriginalInputPath(inputNode)
         logic = MOOSELogic()
-        logic.runSegmentation(inputNode, models, accelerator)
+        logic.runSegmentation(self.originalInputPath, models, inputNode)
         
 
 class MOOSELogic:
-    def runSegmentation(self, inputNode, models, accelerator='cuda'):
+    def runSegmentation(self, inputPath, models, inputNode):
         """
         Run MOOSE segmentation using the moosez CLI with the required folder structure.
 
@@ -75,11 +87,12 @@ class MOOSELogic:
         """
         try:
             # Set up folders and get file paths
-            mainFolder, subjectFolder = setupFolders(inputNode)
+            mainFolder, subjectFolder = self.setupFolders(inputPath, inputNode)
             print(f"Saved input NIfTI")
             slicer_python = shutil.which("PythonSlicer")
             print(slicer_python)
             # Run moosez CLI for each model
+            print(models)
             for model in models:
                 print(f"Running moosez for model: {model}")
                 cmd = [
@@ -99,10 +112,12 @@ class MOOSELogic:
                 raise FileNotFoundError(f"Segmentation file not found: {expectedOutputPath}")
 
             slicer.util.loadSegmentation(expectedOutputPath)
+            cleanup(mainFolder)
             slicer.util.delayDisplay(f"MOOSE segmentation completed successfully! 🚀 Segmentation loaded from: {expectedOutputPath}", 3000)
 
         except Exception as e:
             slicer.util.errorDisplay(f"Error during MOOSE segmentation: {e}")
+
 
     @staticmethod
     def convertVolumeNodeToNumpy(volumeNode):
@@ -147,36 +162,47 @@ class MOOSELogic:
             raise RuntimeError("Failed to load segmentation into Slicer.")
 
 
-def setupFolders(inputNode):
-    """
-    Set up the folder structure for moosez based on the input CT file location.
+    def setupFolders(self, inputpath, inputNode):
+        """
+        Set up the folder structure for moosez based on the original input file location.
 
-    Args:
-        inputNode (vtkMRMLScalarVolumeNode): The input volume node.
-        subjectID (str): ID of the subject folder.
+        Args:
+            inputNode (vtkMRMLScalarVolumeNode): The input volume node.
 
-    Returns:
-        tuple: Paths for:
-            - mainFolder (str): Main folder derived from the CT file directory.
-            - inputNiftiPath (str): Path to save the input NIfTI file.
-            - expectedOutputPath (str): Path where the segmentation file will be saved.
-    """
-    # Get the directory of the input CT file
-    storageNode = inputNode.GetStorageNode()
-    if not storageNode or not storageNode.GetFileName():
-        raise ValueError("Input volume does not have an associated file on disk.")
+        Returns:
+            tuple: Paths for:
+                - mainFolder (str): Main folder derived from the CT file directory.
+                - subjectFolder (str): Path to the subject folder where input NIfTI is stored.
+        """
+        # Define the main folder and subject folder
+        mainFolder = os.path.join(os.path.dirname(inputpath), "temp")
+        subjectFolder = os.path.join(mainFolder, "sub_to_moose")
 
-    inputFilePath = storageNode.GetFileName()
-    print(inputFilePath)
-    mainFolder = os.path.join(os.path.dirname(inputFilePath), "temp")
-    # Create the subject folder
-    subjectFolder = os.path.join(mainFolder, "sub_to_moose")
-    if not os.path.exists(subjectFolder):
-        os.makedirs(subjectFolder)
+        # Clear and recreate the temporary folder
+        if os.path.exists(mainFolder):
+            shutil.rmtree(mainFolder)
+            print(f"Cleared existing temporary folder: {mainFolder}")
+
+        os.makedirs(subjectFolder, exist_ok=True)
         print(f"Created subject folder: {subjectFolder}")
 
-    # Path for the input NIfTI file
-    inputNiftiPath = os.path.join(subjectFolder, f"CT_sub_to_moose.nii.gz")
+        # Save the input NIfTI file in the subject folder
+        inputNiftiPath = os.path.join(subjectFolder, "CT_sub_to_moose.nii.gz")
+        slicer.util.saveNode(inputNode, inputNiftiPath)
+        print(f"Saved input NIfTI file: {inputNiftiPath}")
 
-    slicer.util.saveNode(inputNode, inputNiftiPath)
-    return mainFolder, subjectFolder
+        return mainFolder, subjectFolder
+
+def cleanup(folderPath):
+    """
+    Remove the temporary folder and its contents.
+
+    Args:
+        folderPath (str): Path to the temporary folder to be removed.
+    """
+    if os.path.exists(folderPath):
+        try:
+            shutil.rmtree(folderPath)
+            print(f"Temporary folder '{folderPath}' has been cleared.")
+        except Exception as cleanupError:
+            slicer.util.errorDisplay(f"Failed to clean up temporary folder '{folderPath}': {cleanupError}")
