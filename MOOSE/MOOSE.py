@@ -7,15 +7,15 @@ import multiprocessing
 import glob
 import time
 
-
 multiprocessing.set_start_method("spawn", force=True)
 
-class MOOSEExtension(ScriptedLoadableModule):
+
+class MOOSE(ScriptedLoadableModule):
     def __init__(self, parent):
         super().__init__(parent)
-        self.parent.title = "MOOSE Extension"
+        self.parent.title = "MOOSE"
         self.parent.categories = ["Segmentation"]
-        self.parent.contributors = ["Manuel Pires"]
+        self.parent.contributors = ["Manuel Pires, Sebastian Gutschmayer"]
         self.parent.helpText = """
         This extension integrates the MOOSE segmentation tool into 3D Slicer for multi-organ PET/CT segmentation.
         """
@@ -24,12 +24,12 @@ class MOOSEExtension(ScriptedLoadableModule):
         """
 
 
-class MOOSEExtensionWidget(ScriptedLoadableModuleWidget):
+class MOOSEWidget(ScriptedLoadableModuleWidget):
     def setup(self):
         super().setup()
 
         # Load the UI file
-        uiWidget = slicer.util.loadUI(self.resourcePath('UI/MOOSEExtension.ui'))
+        uiWidget = slicer.util.loadUI(self.resourcePath('UI/MOOSE.ui'))
         self.layout.addWidget(uiWidget)
         self.ui = slicer.util.childWidgetVariables(uiWidget)
 
@@ -43,7 +43,8 @@ class MOOSEExtensionWidget(ScriptedLoadableModuleWidget):
     def updateRunButtonState(self):
         """Enable the Run button only if inputs are valid."""
         self.ui.runButton.enabled = (
-            self.ui.inputSelector.currentNode() is not None and os.path.isdir(self.ui.outputDirectoryButton.directory)
+                self.ui.inputSelector.currentNode() is not None and os.path.isdir(
+            self.ui.outputDirectoryButton.directory)
         )
 
     def getOriginalInputPath(self, inputNode):
@@ -71,7 +72,7 @@ class MOOSEExtensionWidget(ScriptedLoadableModuleWidget):
 
         self.getOriginalInputPath(inputNode)
         self.logic.runSegmentation(self.originalInputPath, models, inputNode)
-        
+
 
 class MOOSELogic:
     def __init__(self):
@@ -97,18 +98,20 @@ class MOOSELogic:
             self.log(models)
             for model in models:
                 self.log(f"Running moosez for model: {model}")
-                cmd = [slicer_python, "-m", "moosez", "--main_directory", mainFolder, "--model_names", model, "--verbose_off", "--logging_off"]
+                cmd = [slicer_python, "-m", "moosez", "--main_directory", mainFolder, "--model_names", model,
+                       "--verbose_off", "--logging_off"]
                 result = slicer.util.launchConsoleProcess(cmd)
                 self.logProcessOutput(result)
                 self.log("FINISHED MOOSE")
-            expectedOutputPath = glob.glob(os.path.join(subjectFolder,"moosez-*", "segmentations", "*.nii.gz"))[0]
+            expectedOutputPath = glob.glob(os.path.join(subjectFolder, "moosez-*", "segmentations", "*.nii.gz"))[0]
 
             if not os.path.exists(expectedOutputPath):
                 raise FileNotFoundError(f"Segmentation file not found: {expectedOutputPath}")
 
             slicer.util.loadSegmentation(expectedOutputPath)
             cleanup(mainFolder)
-            slicer.util.delayDisplay(f"MOOSE segmentation completed successfully! 🚀 Segmentation loaded from: {expectedOutputPath}", 3000)
+            slicer.util.delayDisplay(
+                f"MOOSE segmentation completed successfully! 🚀 Segmentation loaded from: {expectedOutputPath}", 3000)
 
         except Exception as e:
             slicer.util.errorDisplay(f"Error during MOOSE segmentation: {e}")
