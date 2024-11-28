@@ -131,9 +131,7 @@ class MOOSELogic:
             segmentID = segmentation.GetNthSegmentID(segmentIndex)
             segmentID_numeric = int(segmentID.replace("Segment_", ""))
             segment = segmentation.GetSegment(segmentID)
-
             newName = label_indices[segmentID_numeric]
-            print(f"Renaming segment '{segment.GetName()}' (ID: {segmentID}) to '{newName}'")
             segment.SetName(newName)
 
     def log(self, text):
