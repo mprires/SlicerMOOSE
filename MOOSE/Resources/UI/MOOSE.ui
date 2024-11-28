@@ -28,7 +28,7 @@
     </widget>
    </item>
    <item>
-    <widget class="qMRMLNodeComboBox" name="inputSelector">
+    <widget class="qMRMLNodeComboBox" name="inputVolumeSelector">
      <property name="toolTip">
       <string>Select the input image to process.</string>
      </property>

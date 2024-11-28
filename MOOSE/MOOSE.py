@@ -2,12 +2,9 @@ import shutil
 import slicer
 from slicer.ScriptedLoadableModule import ScriptedLoadableModule, ScriptedLoadableModuleWidget
 import slicer.util
+from PyQt5 import QtGui
 import os
-import multiprocessing
 import glob
-import time
-
-multiprocessing.set_start_method("spawn", force=True)
 
 
 class MOOSE(ScriptedLoadableModule):
@@ -33,7 +30,7 @@ class MOOSEWidget(ScriptedLoadableModuleWidget):
         self.layout.addWidget(uiWidget)
         self.ui = slicer.util.childWidgetVariables(uiWidget)
 
-        self.ui.inputSelector.setMRMLScene(slicer.mrmlScene)  # Ensure the scene is connected
+        self.ui.inputVolumeSelector.setMRMLScene(slicer.mrmlScene)  # Ensure the scene is connected
         self.ui.runButton.connect('clicked()', self.onRunButtonClicked)
         self.originalInputPath = None
 
@@ -43,78 +40,101 @@ class MOOSEWidget(ScriptedLoadableModuleWidget):
     def updateRunButtonState(self):
         """Enable the Run button only if inputs are valid."""
         self.ui.runButton.enabled = (
-                self.ui.inputSelector.currentNode() is not None and os.path.isdir(
-            self.ui.outputDirectoryButton.directory)
-        )
-
-    def getOriginalInputPath(self, inputNode):
-        if not self.originalInputPath:
-            storageNode = inputNode.GetStorageNode()
-            if not storageNode or not storageNode.GetFileName():
-                raise ValueError("Input volume does not have an associated file on disk.")
-            self.originalInputPath = storageNode.GetFileName()  # Cache the original path
+                self.ui.inputVolumeSelector.currentNode() is not None and os.path.isdir(
+            self.ui.outputDirectoryButton.directory))
 
     def addLog(self, text):
+        if not text:
+            return
+
+        current_text = self.ui.statusLabel.toPlainText()
+        lines = current_text.split('\n') if current_text else []
+
+        if lines:
+            last_line = lines[-1]
+
+            if len(last_line) > 1 and len(text) > 1:
+                if text.startswith(("└", "│", "┏", "┃", "┡")):
+                    return
+
+                last_line_sub = last_line[1:]
+                new_text_sub = text[1:]
+
+                if new_text_sub.startswith(("└", "│", "┏", "┃", "┡")):
+                    return
+
+                if last_line_sub.startswith((" [", "  [", " Initiating")) and new_text_sub.startswith((" [", "  [", " Initiating")):
+                    lines[-1] = text
+                    new_text = '\n'.join(lines)
+                    self.ui.statusLabel.setPlainText(new_text)
+
+                    cursor = self.ui.statusLabel.textCursor()
+                    cursor.movePosition(QtGui.QTextCursor.End)
+                    self.ui.statusLabel.setTextCursor(cursor)
+                    slicer.app.processEvents()
+                    return
+
         self.ui.statusLabel.appendPlainText(text)
-        slicer.app.processEvents()  # force update
+        slicer.app.processEvents()
 
     def onRunButtonClicked(self):
-        start = time.time()
+        self.ui.runButton.setEnabled(False)
+        self.addLog('Starting MOOSE Segmentation.')
 
-        self.ui.statusLabel.plainText = ''
-        inputNode = self.ui.inputSelector.currentNode()
+        inputNode = self.ui.inputVolumeSelector.currentNode()
         outputDirectory = self.ui.outputDirectoryButton.directory
         models = self.ui.modelsSelector.currentText.split(",")
-
         if not inputNode or not outputDirectory:
             slicer.util.errorDisplay("Please select an input volume and output directory.")
             return
 
-        self.getOriginalInputPath(inputNode)
-        self.logic.runSegmentation(self.originalInputPath, models, inputNode)
+        moose_folder, subject_folder = self.logic.prepare_data(self.ui.inputVolumeSelector.currentNode())
+        self.logic.runSegmentation(moose_folder, subject_folder, models)
+        self.ui.runButton.setEnabled(True)
+        self.addLog('MOOSE completed all tasks.')
 
 
 class MOOSELogic:
     def __init__(self):
         self.logCallback = None
 
-    def runSegmentation(self, inputPath, models, inputNode):
+    def runSegmentation(self, moose_folder, subject_folder, models):
         """
         Run MOOSE segmentation using the moosez CLI with the required folder structure.
 
         Args:
-            inputNode (vtkMRMLScalarVolumeNode): The input volume node.
             models (list): List of models to use for segmentation.
             mainFolder (str): Path to the main folder where subject folders are stored.
             subjectID (str): ID of the subject folder.
         """
         try:
-            # Set up folders and get file paths
-            mainFolder, subjectFolder = self.setupFolders(inputPath, inputNode)
-            self.log(f"Saved input NIfTI")
             slicer_python = shutil.which("PythonSlicer")
-            self.log(slicer_python)
-            # Run moosez CLI for each model
-            self.log(models)
             for model in models:
                 self.log(f"Running moosez for model: {model}")
-                cmd = [slicer_python, "-m", "moosez", "--main_directory", mainFolder, "--model_names", model,
-                       "--verbose_off", "--logging_off"]
+                cmd = [slicer_python, "-m", "moosez", "--main_directory", moose_folder, "--model_names", model]
                 result = slicer.util.launchConsoleProcess(cmd)
                 self.logProcessOutput(result)
-                self.log("FINISHED MOOSE")
-            expectedOutputPath = glob.glob(os.path.join(subjectFolder, "moosez-*", "segmentations", "*.nii.gz"))[0]
+
+                label_indices = self.get_label_indices(model)
+
+            expectedOutputPath = glob.glob(os.path.join(subject_folder, "moosez-*", "segmentations", "*.nii.gz"))[0]
 
             if not os.path.exists(expectedOutputPath):
                 raise FileNotFoundError(f"Segmentation file not found: {expectedOutputPath}")
 
-            slicer.util.loadSegmentation(expectedOutputPath)
-            cleanup(mainFolder)
-            slicer.util.delayDisplay(
-                f"MOOSE segmentation completed successfully! 🚀 Segmentation loaded from: {expectedOutputPath}", 3000)
-
         except Exception as e:
             slicer.util.errorDisplay(f"Error during MOOSE segmentation: {e}")
+
+        segmentationNode = slicer.util.loadSegmentation(expectedOutputPath)
+        segmentation = segmentationNode.GetSegmentation()
+        for segmentIndex in range(segmentation.GetNumberOfSegments()):
+            segmentID = segmentation.GetNthSegmentID(segmentIndex)
+            segmentID_numeric = int(segmentID.replace("Segment_", ""))
+            segment = segmentation.GetSegment(segmentID)
+
+            newName = label_indices[segmentID_numeric]
+            print(f"Renaming segment '{segment.GetName()}' (ID: {segmentID}) to '{newName}'")
+            segment.SetName(newName)
 
     def log(self, text):
         if self.logCallback:
@@ -144,42 +164,22 @@ class MOOSELogic:
             raise CalledProcessError(retcode, proc.args, output=proc.stdout, stderr=proc.stderr)
         return output if returnOutput else None
 
-    def setupFolders(self, inputpath, inputNode):
-        """
-        Set up the folder structure for moosez based on the original input file location.
+    def prepare_data(self, inputVolume):
 
-        Args:
-            inputNode (vtkMRMLScalarVolumeNode): The input volume node.
+        moose_folder = slicer.util.tempDirectory()
+        subject_folder = os.path.join(moose_folder, "MOOSE_subject")
+        inputFile = os.path.join(subject_folder, "CT_MOOSE_input.nii")
 
-        Returns:
-            tuple: Paths for:
-                - mainFolder (str): Main folder derived from the CT file directory.
-                - subjectFolder (str): Path to the subject folder where input NIfTI is stored.
-        """
-        # Define the main folder and subject folder
-        mainFolder = os.path.join(os.path.dirname(inputpath), "temp")
-        subjectFolder = os.path.join(mainFolder, "sub_to_moose")
+        volumeStorageNode = slicer.mrmlScene.CreateNodeByClass("vtkMRMLVolumeArchetypeStorageNode")
+        volumeStorageNode.SetFileName(inputFile)
+        volumeStorageNode.UseCompressionOff()
+        volumeStorageNode.WriteData(inputVolume)
+        volumeStorageNode.UnRegister(None)
 
-        # Clear and recreate the temporary folder
-        if os.path.exists(mainFolder):
-            shutil.rmtree(mainFolder)
+        return moose_folder, subject_folder
 
-        os.makedirs(subjectFolder, exist_ok=True)
-        inputNiftiPath = os.path.join(subjectFolder, "CT_sub_to_moose.nii.gz")
-        slicer.util.saveNode(inputNode, inputNiftiPath)
-
-        return mainFolder, subjectFolder
-
-
-def cleanup(folderPath):
-    """
-    Remove the temporary folder and its contents.
-
-    Args:
-        folderPath (str): Path to the temporary folder to be removed.
-    """
-    if os.path.exists(folderPath):
-        try:
-            shutil.rmtree(folderPath)
-        except Exception as cleanupError:
-            slicer.util.errorDisplay(f"Failed to clean up temporary folder '{folderPath}': {cleanupError}")
+    def get_label_indices(self, model_identifier):
+        from moosez.models import Model
+        from moosez.system import OutputManager
+        model = Model(model_identifier, OutputManager(False, False))
+        return model.organ_indices
