@@ -32,16 +32,21 @@ class MOOSEWidget(ScriptedLoadableModuleWidget):
 
         self.ui.inputVolumeSelector.setMRMLScene(slicer.mrmlScene)  # Ensure the scene is connected
         self.ui.runButton.connect('clicked()', self.onRunButtonClicked)
-        self.originalInputPath = None
+        self.ui.buttonInstallDependencies.connect('clicked()', self.onbuttonInstallDependenciesClicked)
 
         self.logic = MOOSELogic()
         self.logic.logCallback = self.addLog
 
-    def updateRunButtonState(self):
-        """Enable the Run button only if inputs are valid."""
-        self.ui.runButton.enabled = (
-                self.ui.inputVolumeSelector.currentNode() is not None and os.path.isdir(
-            self.ui.outputDirectoryButton.directory))
+    def onbuttonInstallDependenciesClicked(self):
+        try:
+            import moosez
+        except ModuleNotFoundError as e:
+            self.ui.buttonInstallDependencies.setEnabled(False)
+            self.addLog("Installing MOOSE.")
+            slicer.util.pip_install("moosez")
+            return
+        self.ui.buttonInstallDependencies.setEnabled(False)
+        self.addLog("MOOSE is already installed.")
 
     def addLog(self, text):
         if not text:
@@ -92,6 +97,7 @@ class MOOSEWidget(ScriptedLoadableModuleWidget):
         self.logic.runSegmentation(moose_folder, subject_folder, models)
         self.ui.runButton.setEnabled(True)
         self.addLog('MOOSE completed all tasks.')
+        shutil.rmtree(moose_folder)
 
 
 class MOOSELogic:
@@ -163,7 +169,6 @@ class MOOSELogic:
         return output if returnOutput else None
 
     def prepare_data(self, inputVolume):
-
         moose_folder = slicer.util.tempDirectory()
         subject_folder = os.path.join(moose_folder, "MOOSE_subject")
         inputFile = os.path.join(subject_folder, "CT_MOOSE_input.nii")
