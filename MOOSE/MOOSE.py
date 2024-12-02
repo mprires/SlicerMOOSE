@@ -2,9 +2,11 @@ import shutil
 import slicer
 from slicer.ScriptedLoadableModule import ScriptedLoadableModule, ScriptedLoadableModuleWidget, ScriptedLoadableModuleTest
 import slicer.util
-from PyQt5 import QtGui
 import os
 import glob
+from pathlib import Path
+import requests
+import sysconfig
 
 
 class MOOSE(ScriptedLoadableModule):
@@ -39,16 +41,19 @@ class MOOSEWidget(ScriptedLoadableModuleWidget):
 
     def onbuttonInstallDependenciesClicked(self):
         try:
-            import moosez
+            from moosez import moose
         except ModuleNotFoundError as e:
             self.ui.buttonInstallDependencies.setEnabled(False)
+            slicer.util.pip_install("PyQt5")
             self.addLog("Installing MOOSE.")
-            slicer.util.pip_install("moosez")
+            slicer.util.pip_install("git+https://github.com/Keyn34/MOOSE.git")
+            self.addLog("MOOSE installed successfuly")
             return
         self.ui.buttonInstallDependencies.setEnabled(False)
         self.addLog("MOOSE is already installed.")
 
     def addLog(self, text):
+        from PyQt5 import QtGui
         if not text:
             return
 
@@ -87,14 +92,13 @@ class MOOSEWidget(ScriptedLoadableModuleWidget):
         self.addLog('Starting MOOSE Segmentation.')
 
         inputNode = self.ui.inputVolumeSelector.currentNode()
-        outputDirectory = self.ui.outputDirectoryButton.directory
-        models = self.ui.modelsSelector.currentText.split(",")
-        if not inputNode or not outputDirectory:
+        model = self.ui.modelsSelector.currentText
+        if not inputNode:
             slicer.util.errorDisplay("Please select an input volume and output directory.")
             return
 
         moose_folder, subject_folder = self.logic.prepare_data(self.ui.inputVolumeSelector.currentNode())
-        self.logic.runSegmentation(moose_folder, subject_folder, models)
+        self.logic.runSegmentation(moose_folder, subject_folder, model)
         self.ui.runButton.setEnabled(True)
         self.addLog('MOOSE completed all tasks.')
         shutil.rmtree(moose_folder)
@@ -103,8 +107,9 @@ class MOOSEWidget(ScriptedLoadableModuleWidget):
 class MOOSELogic:
     def __init__(self):
         self.logCallback = None
+        self.moosez = os.path.join(sysconfig.get_path('scripts'), "moosez")
 
-    def runSegmentation(self, moose_folder, subject_folder, models):
+    def runSegmentation(self, moose_folder, subject_folder, model):
         """
         Run MOOSE segmentation using the moosez CLI with the required folder structure.
 
@@ -115,13 +120,12 @@ class MOOSELogic:
         """
         try:
             slicer_python = shutil.which("PythonSlicer")
-            for model in models:
-                self.log(f"Running moosez for model: {model}")
-                cmd = [slicer_python, "-m", "moosez", "--main_directory", moose_folder, "--model_names", model]
-                result = slicer.util.launchConsoleProcess(cmd)
-                self.logProcessOutput(result)
+            self.log(f"Running moosez for model: {model}")
+            cmd = [slicer_python, self.moosez, "--main_directory", moose_folder, "--model_names", model]
+            result = slicer.util.launchConsoleProcess(cmd)
+            self.logProcessOutput(result)
 
-                label_indices = self.get_label_indices(model)
+            label_indices = self.get_label_indices(model)
 
             expectedOutputPath = glob.glob(os.path.join(subject_folder, "moosez-*", "segmentations", "*.nii.gz"))[0]
 
@@ -203,9 +207,10 @@ class MOOSETest(ScriptedLoadableModuleTest):
         self.delayDisplay("Starting MOOSE Integration Test")
 
         # Load a sample volume (replace with the actual path or use Slicer sample data)
-        #sampleVolume = "/media/kylo-ren/6ED4-1166/Manuel/MOOSEv2_data/sub1/clin_CT_organs_segmentation_CT_2_ac_ct_thoabd_uld_22__hd_fov.nii.gz"
-        import SampleData
-        sampleVolume = SampleData.downloadSample('CTChest')
+
+        sampleVolume_path = self.download_sample_data()
+        sampleVolume = slicer.util.loadVolume(sampleVolume_path)
+
         self.delayDisplay('Loaded test data set')
         self.assertIsNotNone(sampleVolume, "Failed to load sample volume")
         print("######################################################")
@@ -218,25 +223,57 @@ class MOOSETest(ScriptedLoadableModuleTest):
         print("MOOSELogic created successfully")
 
         # Prepare data
-        self.delayDisplay("Preparing data for segmentation")
-        moose_folder, subject_folder = mooseLogic.prepare_data(sampleVolume)
-        self.assertTrue(os.path.exists(moose_folder), "Temporary folder for MOOSE not created")
-        print("######################################################")
-        print("Data prepared successfully")
+
 
         # Run segmentation with a test model
-        model = ["clin_ct_organs"]
-        try:
-            self.delayDisplay(f"Running segmentation for {model}")
-            mooseLogic.runSegmentation(moose_folder, subject_folder, model)
-        except Exception as e:
-            self.fail(f"Segmentation for model {model} failed with exception: {str(e)}")
-        print("######################################################")
-        print(f"Infered model {model} successfully")
+        test_models = ["clin_ct_cardiac", "clin_ct_muscles", "clin_ct_organs", "clin_ct_peripheral_bones",
+                       "clin_ct_ribs", "clin_ct_vertebrae"]
+        for model in test_models:
+            try:
+                self.delayDisplay("Preparing data for segmentation")
+                moose_folder, subject_folder = mooseLogic.prepare_data(sampleVolume)
+                self.assertTrue(os.path.exists(moose_folder), "Temporary folder for MOOSE not created")
+                print("######################################################")
+                print("Data prepared successfully")
+                self.delayDisplay(f"Running segmentation for {model}")
+                mooseLogic.runSegmentation(moose_folder, subject_folder, model)
+            except Exception as e:
+                self.fail(f"Segmentation for model {model} failed with exception: {str(e)}")
+            print("######################################################")
+            print(f"Infered model {model} successfully")
 
         # Clean up
-        import shutil
-        shutil.rmtree(moose_folder)
+            import shutil
+            shutil.rmtree(moose_folder)
+        os.remove(sampleVolume_path)
         self.delayDisplay("MOOSE test passed!")
         print("######################################################")
         print("MOOSE test passed")
+
+    def download_sample_data(self):
+
+        download_directory = self.get_default_download_folder()
+        URL = "https://enhance-pet.s3.eu-central-1.amazonaws.com/slicer_sample_data/sample_CT.nii.gz"
+        download_file_name = os.path.basename(URL)
+        download_file_path = os.path.join(download_directory, download_file_name)
+
+        response = requests.get(URL, stream=True)
+        if response.status_code != 200:
+            output_manager.console_update(f"    X Failed to download model from {URL}")
+            raise Exception(f"Failed to download model from {URL}")
+        chunk_size = 1024 * 10
+
+        with open(download_file_path, "wb") as f:
+            for chunk in response.iter_content(chunk_size=chunk_size):
+                if chunk:
+                    f.write(chunk)
+        return download_file_path
+
+
+    def get_default_download_folder(self):
+        if os.name == 'nt':  # For Windows
+            download_folder = Path(os.getenv('USERPROFILE')) / 'Downloads'
+        else:  # For macOS and Linux
+            download_folder = Path.home() / 'Downloads'
+
+        return download_folder
