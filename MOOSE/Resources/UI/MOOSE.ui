@@ -81,7 +81,27 @@
      </property>
      <item>
       <property name="text">
-       <string>clin_ct_organs</string>
+       <string>clin_ct_body_composition</string>
+      </property>
+     </item>
+     <item>
+      <property name="text">
+       <string>clin_ct_cardiac</string>
+      </property>
+     </item>
+     <item>
+      <property name="text">
+       <string>clin_ct_muscles</string>
+      </property>
+     </item>
+     <item>
+        <property name="text">
+         <string>clin_ct_organs</string>
+        </property>
+      </item>
+     <item>
+      <property name="text">
+       <string>clin_ct_peripheral_bones</string>
       </property>
      </item>
      <item>
@@ -89,7 +109,12 @@
        <string>clin_ct_ribs</string>
       </property>
      </item>
-    </widget>
+     <item>
+      <property name="text">
+       <string>clin_ct_vertebrae</string>
+      </property>
+     </item>
+   </widget>
    </item>
    <item>
     <widget class="Line" name="line_2">

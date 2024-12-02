@@ -1,6 +1,6 @@
 import shutil
 import slicer
-from slicer.ScriptedLoadableModule import ScriptedLoadableModule, ScriptedLoadableModuleWidget
+from slicer.ScriptedLoadableModule import ScriptedLoadableModule, ScriptedLoadableModuleWidget, ScriptedLoadableModuleTest
 import slicer.util
 from PyQt5 import QtGui
 import os
@@ -186,3 +186,57 @@ class MOOSELogic:
         from moosez.system import OutputManager
         model = Model(model_identifier, OutputManager(False, False))
         return model.organ_indices
+
+
+class MOOSETest(ScriptedLoadableModuleTest):
+    def setUp(self):
+        """Reset the Slicer environment to ensure a clean state for testing."""
+        slicer.mrmlScene.Clear()
+
+    def runTest(self):
+        """Run all test cases."""
+        self.setUp()
+        self.test_MOOSEIntegration()
+
+    def test_MOOSEIntegration(self):
+        """Test MOOSE functionality."""
+        self.delayDisplay("Starting MOOSE Integration Test")
+
+        # Load a sample volume (replace with the actual path or use Slicer sample data)
+        #sampleVolume = "/media/kylo-ren/6ED4-1166/Manuel/MOOSEv2_data/sub1/clin_CT_organs_segmentation_CT_2_ac_ct_thoabd_uld_22__hd_fov.nii.gz"
+        import SampleData
+        sampleVolume = SampleData.downloadSample('CTChest')
+        self.delayDisplay('Loaded test data set')
+        self.assertIsNotNone(sampleVolume, "Failed to load sample volume")
+        print("######################################################")
+        print("Volume Loaded successfully")
+
+        # Set up MOOSE logic
+        mooseLogic = MOOSELogic()
+        self.assertIsNotNone(mooseLogic, "MOOSELogic instance could not be created")
+        print("######################################################")
+        print("MOOSELogic created successfully")
+
+        # Prepare data
+        self.delayDisplay("Preparing data for segmentation")
+        moose_folder, subject_folder = mooseLogic.prepare_data(sampleVolume)
+        self.assertTrue(os.path.exists(moose_folder), "Temporary folder for MOOSE not created")
+        print("######################################################")
+        print("Data prepared successfully")
+
+        # Run segmentation with a test model
+        model = ["clin_ct_organs"]
+        try:
+            self.delayDisplay(f"Running segmentation for {model}")
+            mooseLogic.runSegmentation(moose_folder, subject_folder, model)
+        except Exception as e:
+            self.fail(f"Segmentation for model {model} failed with exception: {str(e)}")
+        print("######################################################")
+        print(f"Infered model {model} successfully")
+
+        # Clean up
+        import shutil
+        shutil.rmtree(moose_folder)
+        self.delayDisplay("MOOSE test passed!")
+        print("######################################################")
+        print("MOOSE test passed")
