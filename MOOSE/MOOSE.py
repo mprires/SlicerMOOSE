@@ -77,9 +77,9 @@ class MOOSEWidget(ScriptedLoadableModuleWidget):
         self.addLog('Starting MOOSE segmentation.')
         moose_folder, subject_folder = self.logic.prepare_data(self.ui.inputVolumeSelector.currentNode())
         status_message = self.logic.run_segmentation(moose_folder, subject_folder, model)
-        self.set_gui(True)
         self.addLog(status_message)
         shutil.rmtree(moose_folder)
+        self.set_gui(True)
 
     def addLog(self, text):
         if not text:
