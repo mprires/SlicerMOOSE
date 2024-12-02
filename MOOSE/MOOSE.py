@@ -33,27 +33,55 @@ class MOOSEWidget(ScriptedLoadableModuleWidget):
         self.ui = slicer.util.childWidgetVariables(uiWidget)
 
         self.ui.inputVolumeSelector.setMRMLScene(slicer.mrmlScene)  # Ensure the scene is connected
-        self.ui.runButton.connect('clicked()', self.onRunButtonClicked)
+        self.ui.buttonRunSegmentation.connect('clicked()', self.onbuttonRunSegmentationClicked)
         self.ui.buttonInstallDependencies.connect('clicked()', self.onbuttonInstallDependenciesClicked)
+        self.set_gui(True)
 
         self.logic = MOOSELogic()
         self.logic.logCallback = self.addLog
 
-    def onbuttonInstallDependenciesClicked(self):
+    def set_gui(self, enabled: bool = True):
+        self.ui.inputVolumeSelector.setEnabled(enabled and self.dependencies_installed())
+        self.ui.buttonRunSegmentation.setEnabled(enabled and self.dependencies_installed())
+        self.ui.modelsSelector.setEnabled(enabled and self.dependencies_installed())
+        self.ui.buttonInstallDependencies.setEnabled(enabled and (not self.dependencies_installed()))
+        slicer.app.processEvents()
+
+    def dependencies_installed(self) -> bool:
         try:
             from moosez import moose
         except ModuleNotFoundError as e:
-            self.ui.buttonInstallDependencies.setEnabled(False)
-            slicer.util.pip_install("PyQt5")
-            self.addLog("Installing MOOSE.")
+            return False
+        return True
+
+    def onbuttonInstallDependenciesClicked(self):
+        self.set_gui(False)
+        if self.dependencies_installed():
+            self.addLog("Dependencies already installed.")
+        else:
+            self.addLog("Installing dependencies...")
             slicer.util.pip_install("git+https://github.com/Keyn34/MOOSE.git")
-            self.addLog("MOOSE installed successfuly")
+            self.addLog("Dependencies installed successfully.")
+        self.set_gui(True)
+
+    def onbuttonRunSegmentationClicked(self):
+        self.set_gui(False)
+
+        inputNode = self.ui.inputVolumeSelector.currentNode()
+        model = self.ui.modelsSelector.currentText
+        if not inputNode or not model:
+            slicer.util.errorDisplay("Please select an input volume and model.")
+            self.set_gui(True)
             return
-        self.ui.buttonInstallDependencies.setEnabled(False)
-        self.addLog("MOOSE is already installed.")
+
+        self.addLog('Starting MOOSE segmentation.')
+        moose_folder, subject_folder = self.logic.prepare_data(self.ui.inputVolumeSelector.currentNode())
+        status_message = self.logic.run_segmentation(moose_folder, subject_folder, model)
+        self.set_gui(True)
+        self.addLog(status_message)
+        shutil.rmtree(moose_folder)
 
     def addLog(self, text):
-        from PyQt5 import QtGui
         if not text:
             return
 
@@ -77,72 +105,56 @@ class MOOSEWidget(ScriptedLoadableModuleWidget):
                     lines[-1] = text
                     new_text = '\n'.join(lines)
                     self.ui.statusLabel.setPlainText(new_text)
-
-                    cursor = self.ui.statusLabel.textCursor()
-                    cursor.movePosition(QtGui.QTextCursor.End)
-                    self.ui.statusLabel.setTextCursor(cursor)
+                    scrollbar = self.ui.statusLabel.verticalScrollBar()
+                    scrollbar.setValue(scrollbar.maximum)
                     slicer.app.processEvents()
                     return
 
         self.ui.statusLabel.appendPlainText(text)
         slicer.app.processEvents()
 
-    def onRunButtonClicked(self):
-        self.ui.runButton.setEnabled(False)
-        self.addLog('Starting MOOSE Segmentation.')
-
-        inputNode = self.ui.inputVolumeSelector.currentNode()
-        model = self.ui.modelsSelector.currentText
-        if not inputNode:
-            slicer.util.errorDisplay("Please select an input volume and output directory.")
-            return
-
-        moose_folder, subject_folder = self.logic.prepare_data(self.ui.inputVolumeSelector.currentNode())
-        self.logic.runSegmentation(moose_folder, subject_folder, model)
-        self.ui.runButton.setEnabled(True)
-        self.addLog('MOOSE completed all tasks.')
-        shutil.rmtree(moose_folder)
-
 
 class MOOSELogic:
     def __init__(self):
         self.logCallback = None
         self.moosez = os.path.join(sysconfig.get_path('scripts'), "moosez")
+        self.python = shutil.which("PythonSlicer")
 
-    def runSegmentation(self, moose_folder, subject_folder, model):
+    def run_segmentation(self, moose_folder, subject_folder, model) -> str:
         """
         Run MOOSE segmentation using the moosez CLI with the required folder structure.
 
         Args:
-            models (list): List of models to use for segmentation.
-            mainFolder (str): Path to the main folder where subject folders are stored.
-            subjectID (str): ID of the subject folder.
+            moose_folder (str): List of models to use for segmentation.
+            subject_folder (str): Path to the main folder where subject folders are stored.
+            model (str): ID of the subject folder.
         """
         try:
-            slicer_python = shutil.which("PythonSlicer")
             self.log(f"Running moosez for model: {model}")
-            cmd = [slicer_python, self.moosez, "--main_directory", moose_folder, "--model_names", model]
+            cmd = [self.python, self.moosez, "--main_directory", moose_folder, "--model_names", model]
             result = slicer.util.launchConsoleProcess(cmd)
             self.logProcessOutput(result)
 
             label_indices = self.get_label_indices(model)
-
             expectedOutputPath = glob.glob(os.path.join(subject_folder, "moosez-*", "segmentations", "*.nii.gz"))[0]
 
             if not os.path.exists(expectedOutputPath):
                 raise FileNotFoundError(f"Segmentation file not found: {expectedOutputPath}")
 
+            segmentationNode = slicer.util.loadSegmentation(expectedOutputPath)
+            segmentation = segmentationNode.GetSegmentation()
+            for segmentIndex in range(segmentation.GetNumberOfSegments()):
+                segmentID = segmentation.GetNthSegmentID(segmentIndex)
+                segmentID_numeric = int(segmentID.replace("Segment_", ""))
+                segment = segmentation.GetSegment(segmentID)
+                newName = label_indices[segmentID_numeric]
+                segment.SetName(newName)
+
+            return "MOOSE segmentation completed successfully."
+
         except Exception as e:
             slicer.util.errorDisplay(f"Error during MOOSE segmentation: {e}")
-
-        segmentationNode = slicer.util.loadSegmentation(expectedOutputPath)
-        segmentation = segmentationNode.GetSegmentation()
-        for segmentIndex in range(segmentation.GetNumberOfSegments()):
-            segmentID = segmentation.GetNthSegmentID(segmentIndex)
-            segmentID_numeric = int(segmentID.replace("Segment_", ""))
-            segment = segmentation.GetSegment(segmentID)
-            newName = label_indices[segmentID_numeric]
-            segment.SetName(newName)
+            return f"Error during MOOSE segmentation: {e}"
 
     def log(self, text):
         if self.logCallback:
@@ -236,7 +248,7 @@ class MOOSETest(ScriptedLoadableModuleTest):
                 print("######################################################")
                 print("Data prepared successfully")
                 self.delayDisplay(f"Running segmentation for {model}")
-                mooseLogic.runSegmentation(moose_folder, subject_folder, model)
+                mooseLogic.run_segmentation(moose_folder, subject_folder, model)
             except Exception as e:
                 self.fail(f"Segmentation for model {model} failed with exception: {str(e)}")
             print("######################################################")

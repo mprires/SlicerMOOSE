@@ -124,7 +124,7 @@
     </widget>
    </item>
    <item>
-    <widget class="QPushButton" name="runButton">
+    <widget class="QPushButton" name="buttonRunSegmentation">
      <property name="enabled">
       <bool>true</bool>
      </property>
