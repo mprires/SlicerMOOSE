@@ -5,6 +5,8 @@ MOOSE (Multi-organ objective segmentation) is a data-centric AI solution that ge
 Notes:
  - The utilized models for inference are downloaded from an AWS repository when first used.
  - The used License for this Extension is the same as the one we used originally in MOOSE: GNU GENERAL PUBLIC LICENSE Version 3
+ - The models are trained on a dataset consisting of 1.7k annotated CT datasets
+
 
 # New extension
 
@@ -16,7 +18,7 @@ Notes:
 - [x] Extension URL and revision (scmurl, scmrevision) is correct, consider using a branch name (main, release, ...) instead of a specific git hash to avoid re-submitting pull request whenever the extension is updated
 - [x] Extension icon URL is correct (do not use the icon's webpage but the raw data download URL that you get from the download button - it should look something like this: https://raw.githubusercontent.com/user/repo/main/SomeIcon.png)
 - [x] Screenshot URLs (screenshoturls) are correct, contains at least one
-- [ ] Content of submitted json file is consistent with the top-level CMakeLists.txt file in the repository (dependencies, etc. are the same)
+- [x] Content of submitted json file is consistent with the top-level CMakeLists.txt file in the repository (dependencies, etc. are the same)
 - Homepage URL points to valid webpage containing the following:
   - [x] Extension name
   - [x] Short description: 1-2 sentences, which summarizes what the extension is usable for
