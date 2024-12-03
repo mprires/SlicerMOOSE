@@ -117,12 +117,12 @@ class MOOSEWidget(ScriptedLoadableModuleWidget):
 class MOOSELogic:
     def __init__(self):
         self.logCallback = None
-        self.moosez = os.path.join(sysconfig.get_path('scripts'), format_executable_name("moosez"))
+        self.moosez = os.path.join(sysconfig.get_path('scripts'), self.format_executable_name("moosez"))
         self.python = shutil.which("PythonSlicer")
 
     @staticmethod
-    def format_executable_name(name):
-        return name + ".exe" if os.name == "nt" else name
+    def format_executable_name(executable_name: str):
+        return executable_name + ".exe" if os.name == "nt" else executable_name
 
     def run_segmentation(self, moose_folder, subject_folder, model) -> str:
         """
