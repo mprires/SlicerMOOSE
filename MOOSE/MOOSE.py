@@ -201,7 +201,7 @@ class MOOSELogic:
                     break
                 if returnOutput:
                     output += line
-                self.log(line.rstrip())
+                # self.log(line.rstrip())
             except UnicodeDecodeError as e:
                 # Code page conversion happens because `universal_newlines=True` sets process output to text mode,
                 # and it fails because probably system locale is not UTF8. We just ignore the error and discard the string,
