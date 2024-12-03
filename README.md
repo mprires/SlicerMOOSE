@@ -2,7 +2,7 @@
 
 ## The official Slicer Extension of MOOSE 3.0
 
-MOOSE is a tool for automatic organ segmentation from CT images.
+MOOSE (Multi-organ objective segmentation) is a data-centric AI solution that generates multilabel organ segmentations to facilitate systemic TB whole-person research
 
 ## Available Segmentation Models 🧬
 
