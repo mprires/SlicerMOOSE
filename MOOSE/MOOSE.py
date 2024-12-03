@@ -7,7 +7,6 @@ import glob
 from pathlib import Path
 import requests
 import sysconfig
-import re
 
 
 class MOOSE(ScriptedLoadableModule):
@@ -86,30 +85,11 @@ class MOOSEWidget(ScriptedLoadableModuleWidget):
         shutil.rmtree(moose_folder)
         self.set_gui(True)
 
-    def remove_emojis(self, text: str) -> str:
-        emoji_pattern = re.compile(
-            "["
-            u"\U0001F600-\U0001F64F"  # Emoticons
-            u"\U0001F300-\U0001F5FF"  # Symbols & Pictographs
-            u"\U0001F680-\U0001F6FF"  # Transport & Map Symbols
-            u"\U0001F700-\U0001F77F"  # Alchemical Symbols
-            u"\U0001F780-\U0001F7FF"  # Geometric Shapes Extended
-            u"\U0001F800-\U0001F8FF"  # Supplemental Arrows-C
-            u"\U0001F900-\U0001F9FF"  # Supplemental Symbols & Pictographs
-            u"\U0001FA00-\U0001FA6F"  # Chess Symbols
-            u"\U0001FA70-\U0001FAFF"  # Symbols & Pictographs Extended-A
-            u"\U00002700-\U000027BF"  # Dingbats
-            u"\U0001F1E6-\U0001F1FF"  # Flags
-            "]+",
-            flags=re.UNICODE
-        )
-        return emoji_pattern.sub(r'', text)
-
     def addLog(self, text):
         if not text:
             return
 
-        text = self.remove_emojis(text)
+        print(text)
 
         current_text = self.ui.statusLabel.toPlainText()
         lines = current_text.split('\n') if current_text else []
@@ -130,13 +110,13 @@ class MOOSEWidget(ScriptedLoadableModuleWidget):
                 if last_line_sub.startswith((" [", "  [", " Initiating")) and new_text_sub.startswith((" [", "  [", " Initiating")):
                     lines[-1] = text
                     new_text = '\n'.join(lines)
-                    self.ui.statusLabel.setPlainText(new_text.strip())
+                    self.ui.statusLabel.setPlainText(new_text)
                     scrollbar = self.ui.statusLabel.verticalScrollBar()
                     scrollbar.setValue(scrollbar.maximum)
                     slicer.app.processEvents()
                     return
 
-        self.ui.statusLabel.appendPlainText(text.strip())
+        self.ui.statusLabel.appendPlainText(text)
         slicer.app.processEvents()
 
 
