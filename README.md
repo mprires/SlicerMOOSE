@@ -1,8 +1,13 @@
 ![Moose-logo](Images/moose.png)
 
-## The official Slicer Extension of MOOSE 3.0
+## The official 3DSlicer Extension of MOOSE 3.0
 
-MOOSE (Multi-organ objective segmentation) is a data-centric AI solution that generates multilabel organ segmentations to facilitate systemic TB whole-person research
+MOOSE (Multi-organ objective segmentation) is a data-centric AI solution that generates multilabel organ segmentations to facilitate systemic TB whole-person research.
+
+## Using the Extension
+Find the extension in the `Segmentation` category and open it. When you need to install MOOSE first, only the `Install Dependencies` button will be activated. 
+Click it and after MOOSE is installed in the background, the `Input Volume` and `Model` selector section will be activated. 
+Select a volume and a model and click on `Run Segmentation` and wait for the process to finish.
 
 ## Available Segmentation Models 🧬
 
@@ -20,8 +25,18 @@ MOOSE 3.0 offers a wide range of segmentation models catering to various clinica
 | `clin_ct_vertebrae`   | 1: vertebra_C1, 2: vertebra_C2, 3: vertebra_C3, 4: vertebra_C4, 5: vertebra_C5, 6: vertebra_C6, 7: vertebra_C7, 8: vertebra_T1, 9: vertebra_T2, 10: vertebra_T3, 11: vertebra_T4, 12: vertebra_T5, 13: vertebra_T6, 14: vertebra_T7, 15: vertebra_T8, 16: vertebra_T9, 17: vertebra_T10, 18: vertebra_T11, 19: vertebra_T12, 20: vertebra_L1, 21: vertebra_L2, 22: vertebra_L3, 23: vertebra_L4, 24: vertebra_L5, 25: vertebra_L6, 26: hip_left, 27: hip_right, 28: sacrum |
 | `clin_ct_body_composition`   | 1: skeletal_muscle, 2: subcutaneous_fat, 3: visceral_fat |
 
+![Alt Text](/Images/MOOSE.gif)
+
 ## More on MOOSE
 For more information, visit the package repository of [MOOSE](https://github.com/ENHANCE-PET/MOOSE).
+There, you will find installation instructions for the CLI version and the package variant of MOOSE as well as licensing information.
+
+## Citation
+If you like MOOSE3.0, please cite it's original publication
+>Shiyam Sundar LK, et al. Fully Automated, Semantic Segmentation of Whole-Body 18F-FDG PET/CT Images Based on Data-Centric Artificial Intelligence. Journal of Nuclear Medicine. 2022 Dec;63(12):1941-1948. doi:[10.2967/jnumed.122.264063 ](https://doi.org/10.2967/jnumed.122.264063 )
+
+Also, please cite nnU-Net:
+>Isensee F, et al. nnU-Net: a self-configuring method for deep learning-based biomedical image segmentation. Nature Methods. 2021;18(2):203-211. doi:[10.1038/s41592-020-01008-z](https://doi.org/10.1038/s41592-020-01008-z)
 
 ## 🦌 MOOSE: A part of the [enhance.pet](https://enhance.pet) community
 
