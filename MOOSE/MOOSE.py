@@ -49,6 +49,8 @@ class MOOSEWidget(ScriptedLoadableModuleWidget):
 
     def dependencies_installed(self) -> bool:
         try:
+            if os.name == "nt":
+                import torch
             from moosez import moose
         except ModuleNotFoundError as e:
             return False
@@ -60,6 +62,8 @@ class MOOSEWidget(ScriptedLoadableModuleWidget):
             self.addLog("Dependencies already installed.")
         else:
             self.addLog("Installing dependencies...")
+            if os.name == "nt":
+                slicer.util.pip_install("torch")
             slicer.util.pip_install("git+https://github.com/Keyn34/MOOSE.git")
             self.addLog("Dependencies installed successfully.")
         self.set_gui(True)
