@@ -22,3 +22,7 @@ MOOSE 3.0 offers a wide range of segmentation models catering to various clinica
 
 ## More on MOOSE
 For more information, visit the package repository of [MOOSE](https://github.com/ENHANCE-PET/MOOSE).
+
+## 🦌 MOOSE: A part of the [enhance.pet](https://enhance.pet) community
+
+![Alt Text](/Images/Enhance.gif)
