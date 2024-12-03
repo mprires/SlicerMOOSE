@@ -5,6 +5,7 @@ MOOSE (Multi-organ objective segmentation) is a data-centric AI solution that ge
 Notes:
  - The utilized models for inference are downloaded from an AWS repository when first used.
  - The used License for this Extension is the same as the one we used originally in MOOSE: GNU GENERAL PUBLIC LICENSE Version 3
+ - The models are trained on a dataset consisting of 1.7k annotated CT datasets
 
 # New extension
 

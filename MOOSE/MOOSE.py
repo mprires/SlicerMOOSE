@@ -85,9 +85,20 @@ class MOOSEWidget(ScriptedLoadableModuleWidget):
         shutil.rmtree(moose_folder)
         self.set_gui(True)
 
+    def remove_unencodable_chars(self, text):
+        try:
+            # Attempt to encode the text to UTF-8
+            text.encode('utf-8')
+            return text
+        except UnicodeEncodeError:
+            # If encoding fails, remove unsupported characters
+            return text.encode('utf-8', errors='ignore').decode('utf-8')
+
     def addLog(self, text):
         if not text:
             return
+
+        text = self.remove_unencodable_chars(text)
 
         current_text = self.ui.statusLabel.toPlainText()
         lines = current_text.split('\n') if current_text else []
