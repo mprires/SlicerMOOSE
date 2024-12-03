@@ -4,12 +4,12 @@ project(SlicerMOOSE)
 
 #-----------------------------------------------------------------------------
 # Extension meta-information
-set(EXTENSION_HOMEPAGE "https://www.slicer.org/wiki/Documentation/Nightly/Extensions/SlicerMOOSE")
+set(EXTENSION_HOMEPAGE "https://github.com/mprires/SlicerMOOSE")
 set(EXTENSION_CATEGORY "Segmentation")
 set(EXTENSION_CONTRIBUTORS "Manuel Pires (QIMP Vienna), Sebastian Gutschmayer (QIMP Vienna)")
-set(EXTENSION_DESCRIPTION "MOOSE3.0 for 3DSlicer.")
-set(EXTENSION_ICONURL "https://www.example.com/Slicer/Extensions/SlicerMOOSE.png")
-set(EXTENSION_SCREENSHOTURLS "https://www.example.com/Slicer/Extensions/SlicerMOOSE/Screenshots/1.png")
+set(EXTENSION_DESCRIPTION "The 3DSlicer Extensions for MOOSE: (Multi-organ objective segmentation) is a data-centric AI solution that generates multilabel organ segmentations to facilitate systemic TB whole-person research.")
+set(EXTENSION_ICONURL "https://github.com/mprires/SlicerMOOSE/raw/main/MOOSE/Resources/Icons/MOOSE.png")
+set(EXTENSION_SCREENSHOTURLS "https://github.com/mprires/SlicerMOOSE/raw/main/Images/MOOSE.gif")
 set(EXTENSION_DEPENDS "NA") # Specified as a list or "NA" if no dependencies
 
 #-----------------------------------------------------------------------------
