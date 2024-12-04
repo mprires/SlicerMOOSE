@@ -5,9 +5,10 @@
 MOOSE (Multi-organ objective segmentation) is a data-centric AI solution that generates multilabel organ segmentations to facilitate systemic TB whole-person research.
 
 ## Using the Extension
-Find the extension in the `Segmentation` category and open it. When you need to install MOOSE first, only the `Install Dependencies` button will be activated. 
-Click it and after MOOSE is installed in the background, the `Input Volume` and `Model` selector section will be activated. 
-Select a volume and a model and click on `Run Segmentation` and wait for the process to finish.
+1. Find the extension in the `Segmentation` category and open it. 
+2. When you need to install MOOSE first, only the `Install Dependencies` button will be activated. 
+3. Click it and after MOOSE is installed in the background, the `Input Volume` and `Model` selector section will be activated. 
+4. Select a volume and a model and click on `Run Segmentation` and wait for the process to finish.
 
 ## Available Segmentation Models 🧬
 
