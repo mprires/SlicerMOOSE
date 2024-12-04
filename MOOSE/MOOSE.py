@@ -7,6 +7,7 @@ import glob
 from pathlib import Path
 import requests
 import sysconfig
+import importlib.util
 
 
 class MOOSE(ScriptedLoadableModule):
@@ -21,6 +22,15 @@ class MOOSE(ScriptedLoadableModule):
         self.parent.acknowledgementText = """
         Developed as part of the ENHANCE-PET project.
         """
+
+class InstallError(Exception):
+    def __init__(self, message, restartRequired=False):
+        # Call the base class constructor with the parameters it needs
+        super().__init__(message)
+        self.message = message
+        self.restartRequired = restartRequired
+    def __str__(self):
+        return self.message
 
 
 class MOOSEWidget(ScriptedLoadableModuleWidget):
@@ -47,12 +57,41 @@ class MOOSEWidget(ScriptedLoadableModuleWidget):
         self.ui.buttonInstallDependencies.setEnabled(enabled and (not self.dependencies_installed()))
         slicer.app.processEvents()
 
-    def dependencies_installed(self) -> bool:
+    def is_package_installed(self, package_name: str) -> bool:
+        if importlib.util.find_spec(package_name) is not None:
+            return True
+        else:
+            return False
+
+    def install_pytorch(self):
         try:
-            if os.name == "nt":
-                import torch
-            from moosez import moose
+            import PyTorchUtils
         except ModuleNotFoundError as e:
+            raise InstallError("This module requires PyTorch extension. Install it from the Extensions Manager.")
+
+        minimumTorchVersion = "1.12"
+        torchLogic = PyTorchUtils.PyTorchUtilsLogic()
+        print(torchLogic.getCompatibleComputationBackends())
+        if not torchLogic.torchInstalled():
+            self.addLog('PyTorch Python package is required. Installing... (it may take several minutes)')
+            torch = torchLogic.installTorch(askConfirmation=True, torchVersionRequirement=f">={minimumTorchVersion}")
+            if torch is None:
+                raise InstallError("This module requires PyTorch extension. Install it from the Extensions Manager.")
+        else:
+            # torch is installed, check version
+            from packaging import version
+            if version.parse(torchLogic.torch.__version__) < version.parse(minimumTorchVersion):
+                raise InstallError(f'PyTorch version {torchLogic.torch.__version__} is not compatible with this module.'
+                                   + f' Minimum required version is {minimumTorchVersion}. You can use "PyTorch Util" module to install PyTorch'
+                                   + f' with version requirement set to: >={minimumTorchVersion}')
+
+    def dependencies_installed(self) -> bool:
+        if not self.is_package_installed("torch"):
+            print("TORCH IS NOT INSTALLED")
+            return False
+
+        if not self.is_package_installed("moosez"):
+            print("MOOSE IS NOT INSTALLED")
             return False
         return True
 
@@ -62,7 +101,9 @@ class MOOSEWidget(ScriptedLoadableModuleWidget):
             self.addLog("Dependencies already installed.")
         else:
             self.addLog("Installing dependencies...")
-            if os.name == "nt":
+            if os.name == 'nt':
+                 slicer.util.pip_install("torch --index-url https://download.pytorch.org/whl/cu124")
+            else:
                 slicer.util.pip_install("torch")
             slicer.util.pip_install("git+https://github.com/Keyn34/MOOSE.git")
             self.addLog("Dependencies installed successfully.")
