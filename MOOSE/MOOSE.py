@@ -105,7 +105,7 @@ class MOOSEWidget(ScriptedLoadableModuleWidget):
                  slicer.util.pip_install("torch --index-url https://download.pytorch.org/whl/cu124")
             else:
                 slicer.util.pip_install("torch")
-            slicer.util.pip_install("git+https://github.com/Keyn34/MOOSE.git")
+            slicer.util.pip_install("git+https://github.com/Keyn34/MOOSE.git@SlicerMOOSE")
             self.addLog("Dependencies installed successfully.")
         self.set_gui(True)
 
