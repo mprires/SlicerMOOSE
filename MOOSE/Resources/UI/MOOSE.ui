@@ -6,30 +6,30 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>400</width>
-    <height>300</height>
+    <width>430</width>
+    <height>349</height>
    </rect>
   </property>
   <property name="windowTitle">
    <string>MOOSE Extension</string>
   </property>
-  <layout class="QVBoxLayout" name="verticalLayout">
-   <item>
-    <widget class="QPushButton" name="buttonInstallDependencies">
+  <layout class="QGridLayout" name="gridLayout">
+   <item row="0" column="0" colspan="3">
+    <widget class="QPushButton" name="button_install_dependencies">
      <property name="text">
       <string>Install Dependencies</string>
      </property>
     </widget>
    </item>
-   <item>
-    <widget class="Line" name="line">
+   <item row="10" column="0" colspan="3">
+    <widget class="Line" name="line_3">
      <property name="orientation">
       <enum>Qt::Horizontal</enum>
      </property>
     </widget>
    </item>
-   <item>
-    <widget class="QLabel" name="label">
+   <item row="2" column="0">
+    <widget class="QLabel" name="label_input_volume">
      <property name="sizePolicy">
       <sizepolicy hsizetype="Preferred" vsizetype="Maximum">
        <horstretch>0</horstretch>
@@ -37,12 +37,40 @@
       </sizepolicy>
      </property>
      <property name="text">
-      <string>Selected Image:</string>
+      <string>Input:</string>
      </property>
     </widget>
    </item>
-   <item>
-    <widget class="qMRMLNodeComboBox" name="inputVolumeSelector">
+   <item row="8" column="2">
+    <widget class="QPushButton" name="button_model_folder_clear">
+     <property name="text">
+      <string>Clear Model Folder</string>
+     </property>
+    </widget>
+   </item>
+   <item row="13" column="0" colspan="3">
+    <widget class="Line" name="line_4">
+     <property name="orientation">
+      <enum>Qt::Horizontal</enum>
+     </property>
+    </widget>
+   </item>
+   <item row="8" column="1">
+    <widget class="QPushButton" name="button_model_folder_open">
+     <property name="text">
+      <string>Open Model Folder</string>
+     </property>
+    </widget>
+   </item>
+   <item row="11" column="0">
+    <widget class="QLabel" name="label_output_volume">
+     <property name="text">
+      <string>Output:</string>
+     </property>
+    </widget>
+   </item>
+   <item row="2" column="1" colspan="2">
+    <widget class="qMRMLNodeComboBox" name="selector_input_volume">
      <property name="toolTip">
       <string>Select the input image to process.</string>
      </property>
@@ -71,8 +99,55 @@
      </property>
     </widget>
    </item>
-   <item>
-    <widget class="QComboBox" name="modelsSelector">
+   <item row="6" column="0">
+    <widget class="QLabel" name="label_model">
+     <property name="text">
+      <string>Model:</string>
+     </property>
+    </widget>
+   </item>
+   <item row="4" column="0" colspan="3">
+    <widget class="Line" name="line_2">
+     <property name="orientation">
+      <enum>Qt::Horizontal</enum>
+     </property>
+    </widget>
+   </item>
+   <item row="15" column="0" colspan="3">
+    <widget class="QPushButton" name="button_segmentation_run">
+     <property name="enabled">
+      <bool>true</bool>
+     </property>
+     <property name="autoFillBackground">
+      <bool>false</bool>
+     </property>
+     <property name="text">
+      <string>Run Segmentation</string>
+     </property>
+    </widget>
+   </item>
+   <item row="17" column="0" colspan="3">
+    <widget class="QPlainTextEdit" name="text_edit_status_panel"/>
+   </item>
+   <item row="1" column="0" colspan="3">
+    <widget class="Line" name="line_1">
+     <property name="orientation">
+      <enum>Qt::Horizontal</enum>
+     </property>
+    </widget>
+   </item>
+   <item row="3" column="0" colspan="3">
+    <widget class="QLabel" name="label_note">
+     <property name="layoutDirection">
+      <enum>Qt::LeftToRight</enum>
+     </property>
+     <property name="text">
+      <string>Note: The image has to be a CT. Other modalities are not supported.</string>
+     </property>
+    </widget>
+   </item>
+   <item row="6" column="1" colspan="2">
+    <widget class="QComboBox" name="selector_models">
      <property name="toolTip">
       <string>Select the segmentation model(s) to use.</string>
      </property>
@@ -116,36 +191,56 @@
      </item>
     </widget>
    </item>
-   <item>
-    <widget class="Line" name="line_2">
-     <property name="orientation">
-      <enum>Qt::Horizontal</enum>
+   <item row="11" column="1" colspan="2">
+    <widget class="qMRMLNodeComboBox" name="selector_output_volume">
+     <property name="nodeTypes">
+      <stringlist notr="true">
+       <string>vtkMRMLSegmentationNode</string>
+      </stringlist>
      </property>
-    </widget>
-   </item>
-   <item>
-    <widget class="QPushButton" name="buttonRunSegmentation">
-     <property name="enabled">
+     <property name="hideChildNodeTypes">
+      <stringlist notr="true"/>
+     </property>
+     <property name="noneEnabled">
       <bool>true</bool>
      </property>
-     <property name="autoFillBackground">
+     <property name="addEnabled">
       <bool>false</bool>
      </property>
-     <property name="text">
-      <string>Run Segmentation</string>
+     <property name="editEnabled">
+      <bool>false</bool>
+     </property>
+     <property name="renameEnabled">
+      <bool>true</bool>
+     </property>
+     <property name="interactionNodeSingletonTag">
+      <string notr="true"/>
+     </property>
+     <property name="noneDisplay">
+      <string>Create new segmentation on &quot;Run Segmentation&quot;</string>
      </property>
     </widget>
    </item>
-   <item>
-    <widget class="QPlainTextEdit" name="statusLabel"/>
+   <item row="12" column="1" colspan="2">
+    <widget class="qMRMLSegmentationShow3DButton" name="button_segmentation_show"/>
    </item>
   </layout>
  </widget>
  <customwidgets>
   <customwidget>
+   <class>ctkMenuButton</class>
+   <extends>QPushButton</extends>
+   <header>ctkMenuButton.h</header>
+  </customwidget>
+  <customwidget>
    <class>qMRMLNodeComboBox</class>
    <extends>QWidget</extends>
    <header>qMRMLNodeComboBox.h</header>
+  </customwidget>
+  <customwidget>
+   <class>qMRMLSegmentationShow3DButton</class>
+   <extends>ctkMenuButton</extends>
+   <header>qMRMLSegmentationShow3DButton.h</header>
   </customwidget>
  </customwidgets>
  <resources/>
