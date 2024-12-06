@@ -8,9 +8,15 @@ _The extension, the MOOSE package, and segmentation models are distributed under
 
 ## Using the Extension
 1. Find the extension in the `Segmentation` category and open it. 
-2. When you need to install MOOSE first, only the `Install Dependencies` button will be enabled. 
-3. Click it and after MOOSE is installed (this may take a while), the `Input Volume` and `Model` selector section will be enabled. 
+2. When you use the extension the first time, only the `Install Dependencies` button will be enabled. Please click it to perform the initial setup of dependencies, which includes PyTorch and MOOSE.
+   * For Windows users: Please make sure that the PyTorch extension is also installed. 
+   * For Linux/Unix users: The PyTorch extension is not required, as native `torch` works in most cases. 
+   * The installation will take a while, and it is normal that 3DSlicer might become unresponsive during the installation.
+3. After a successful installation, the `Input Volume` and `Model` selector section will be enabled. 
 4. Select a volume (which has to be a CT image) and a model and click on `Run Segmentation` and wait for the process to finish.
+   * Our dataset consists mostly of total/whole body CT images. We **strongly** recommend to use only CT images with a similar field of view.
+   * The `clin_ct_body_composition` model requires the L3 region of vertebrae to be in the field of view. If the model does not generate a segmentation, the field of view of the CT might be not suitable.
+5. After the process finished, you will be able to select the segmentation and display/work with/modify it as you please.
 
 ## Available Segmentation Models 🧬
 

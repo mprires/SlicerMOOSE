@@ -11,6 +11,7 @@ from pathlib import Path
 import requests
 import sysconfig
 import importlib.util
+from typing import Union
 
 
 class MOOSE(ScriptedLoadableModule):
@@ -120,9 +121,9 @@ class MOOSEWidget(ScriptedLoadableModuleWidget):
     def button_segmentation_run_clicked(self):
         self.update_gui(False)
 
-        inputNode = self.ui.selector_input_volume.currentNode()
+        input_node = self.ui.selector_input_volume.currentNode()
         model = self.ui.selector_models.currentText
-        if not inputNode or not model:
+        if not input_node or not model:
             slicer.util.errorDisplay("Please select an input volume and model.")
             self.update_gui(True)
             return
@@ -131,16 +132,20 @@ class MOOSEWidget(ScriptedLoadableModuleWidget):
         moose_folder, subject_folder = self.logic.prepare_data(self.ui.selector_input_volume.currentNode())
         segmentation_file = self.logic.run_segmentation(moose_folder, subject_folder, model)
 
-        segmentationNode = slicer.util.loadSegmentation(segmentation_file)
-        self.ui.selector_output_volume.setCurrentNode(segmentationNode)
-        segmentation = segmentationNode.GetSegmentation()
-        label_indices = self.logic.get_label_indices(model)
-        for segmentIndex in range(segmentation.GetNumberOfSegments()):
-            segmentID = segmentation.GetNthSegmentID(segmentIndex)
-            segmentID_numeric = int(segmentID.replace("Segment_", ""))
-            segment = segmentation.GetSegment(segmentID)
-            newName = label_indices[segmentID_numeric]
-            segment.SetName(newName)
+        if not segmentation_file:
+            slicer.util.errorDisplay("Could not infer segmentation from provided dataset. Check the FOV.")
+        else:
+            properties = {"name": f"{input_node.GetName()}_{model}_segmentation"}
+            segmentation_node = slicer.util.loadSegmentation(segmentation_file, properties=properties)
+            self.ui.selector_output_volume.setCurrentNode(segmentation_node)
+            segmentation = segmentation_node.GetSegmentation()
+            label_indices = self.logic.get_label_indices(model)
+            for segmentIndex in range(segmentation.GetNumberOfSegments()):
+                segmentID = segmentation.GetNthSegmentID(segmentIndex)
+                segmentID_numeric = int(segmentID.replace("Segment_", ""))
+                segment = segmentation.GetSegment(segmentID)
+                newName = label_indices[segmentID_numeric]
+                segment.SetName(newName)
 
         shutil.rmtree(moose_folder)
         self.update_gui(True)
@@ -201,21 +206,25 @@ class MOOSELogic:
         self.python_slicer = shutil.which("PythonSlicer")
 
     @staticmethod
-    def format_executable_name(executable_name: str):
+    def format_executable_name(executable_name: str) -> str:
         return executable_name + ".exe" if os.name == "nt" else executable_name
 
-    def run_segmentation(self, moose_folder: str, subject_folder: str, model: str) -> str:
+    def run_segmentation(self, moose_folder: str, subject_folder: str, model: str) -> Union[str, None]:
         try:
             self.forward_status(f"Running moosez for model: {model}")
             cmd = [self.python_slicer, self.moosez, "--main_directory", moose_folder, "--model_names", model]
             result = slicer.util.launchConsoleProcess(cmd)
             self.forward_process_status(result)
-            expectedOutputPath = glob.glob(os.path.join(subject_folder, "moosez-*", "segmentations", "*.nii.gz"))[0]
 
-            if not os.path.exists(expectedOutputPath):
-                raise FileNotFoundError(f"Segmentation file not found: {expectedOutputPath}")
+            potential_output_paths = glob.glob(os.path.join(subject_folder, "moosez-*", "segmentations", "*.nii.gz"))
+            if not potential_output_paths:
+                return None
 
-            return expectedOutputPath
+            expected_output_path = potential_output_paths[0]
+            if not os.path.exists(expected_output_path):
+                raise FileNotFoundError(f"Segmentation file not found: {expected_output_path}")
+
+            return expected_output_path
 
         except Exception as e:
             slicer.util.errorDisplay(f"Error during MOOSE segmentation: {e}")
