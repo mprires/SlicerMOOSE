@@ -4,8 +4,6 @@
 
 MOOSE (Multi-organ objective segmentation) is a data-centric AI solution that generates multilabel organ segmentations to facilitate systemic TB whole-person research.
 
-_The extension, the MOOSE package, and segmentation models are distributed under the GPL license._
-
 ## Using the Extension
 1. Find the extension in the `Segmentation` category and open it. 
 2. When you use the extension the first time, only the `Install Dependencies` button will be enabled. Please click it to perform the initial setup of dependencies, which includes PyTorch and MOOSE.
@@ -17,6 +15,8 @@ _The extension, the MOOSE package, and segmentation models are distributed under
    * Our dataset consists mostly of total/whole body CT images. We **strongly** recommend to use only CT images with a similar field of view.
    * The `clin_ct_body_composition` model requires the L3 region of vertebrae to be in the field of view. If the model does not generate a segmentation, the field of view of the CT might be not suitable.
 5. After the process finished, you will be able to select the segmentation and display/work with/modify it as you please.
+   * The expected compute time of total/whole body CTs with a GPU is around 60 seconds.
+   * With only CPU enabled, it might take up to 40 minutes.
 
 ## Available Segmentation Models 🧬
 
