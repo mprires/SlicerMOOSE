@@ -3,7 +3,6 @@ from slicer.ScriptedLoadableModule import ScriptedLoadableModule, ScriptedLoadab
 import slicer.util
 
 import qt
-
 import shutil
 import os
 import glob
@@ -114,7 +113,7 @@ class MOOSEWidget(ScriptedLoadableModuleWidget):
         else:
             self.update_status_panel("Installing dependencies...")
             self.install_pytorch()
-            slicer.util.pip_install("git+https://github.com/Keyn34/MOOSE.git@SlicerMOOSE")
+            slicer.util.pip_install("https://github.com/Keyn34/MOOSE/archive/refs/heads/SlicerMOOSE.zip")
             self.update_status_panel("Dependencies installed successfully.")
         self.update_gui(True)
 
@@ -199,9 +198,9 @@ class MOOSEWidget(ScriptedLoadableModuleWidget):
 
 class MOOSELogic:
     def __init__(self):
+        from moosez.system import MODELS_DIRECTORY_PATH
         self.status_callback = None
-        python_real = shutil.which("python-real")
-        self.models_directory = os.path.join(os.path.dirname(python_real), 'models', 'nnunet_trained_models')
+        self.models_directory = MODELS_DIRECTORY_PATH
         self.moosez = os.path.join(sysconfig.get_path('scripts'), self.format_executable_name("moosez"))
         self.python_slicer = shutil.which("PythonSlicer")
 
@@ -234,7 +233,6 @@ class MOOSELogic:
         moose_folder = slicer.util.tempDirectory()
         subject_folder = os.path.join(moose_folder, "MOOSE_subject")
         inputFile = os.path.join(subject_folder, "CT_MOOSE_input.nii")
-
         volumeStorageNode = slicer.mrmlScene.CreateNodeByClass("vtkMRMLVolumeArchetypeStorageNode")
         volumeStorageNode.SetFileName(inputFile)
         volumeStorageNode.UseCompressionOff()
@@ -251,7 +249,7 @@ class MOOSELogic:
     def get_label_indices(self, model_identifier):
         from moosez.models import Model
         from moosez.system import OutputManager
-        model = Model(model_identifier, OutputManager(False, False), self.models_directory)
+        model = Model(model_identifier, OutputManager(False, False))
         return model.organ_indices
 
     def forward_status(self, text):
@@ -350,7 +348,6 @@ class MOOSETest(ScriptedLoadableModuleTest):
 
         response = requests.get(URL, stream=True)
         if response.status_code != 200:
-            output_manager.console_update(f"    X Failed to download model from {URL}")
             raise Exception(f"Failed to download model from {URL}")
         chunk_size = 1024 * 10
 
