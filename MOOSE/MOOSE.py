@@ -26,14 +26,78 @@ class MOOSE(ScriptedLoadableModule):
         Developed as part of the ENHANCE-PET project.
         """
 
+
 class InstallError(Exception):
     def __init__(self, message, restartRequired=False):
-        # Call the base class constructor with the parameters it needs
         super().__init__(message)
         self.message = message
         self.restartRequired = restartRequired
+
     def __str__(self):
         return self.message
+
+
+class DependencyManager:
+    def __init__(self, instant_install: bool = False):
+        self.dependency_installed_moosez = self.is_package_installed("moosez")
+        self.dependency_installed_pytorch = self.is_package_installed("torch")
+
+        if instant_install:
+            self.install_all_dependencies()
+
+        self.dependency_installed_all = self.get_dependencies_install_status()
+
+    def is_package_installed(self, package_name: str) -> bool:
+        if importlib.util.find_spec(package_name) is not None:
+            return True
+        else:
+            return False
+
+    def install_moosez(self):
+        if not self.dependency_installed_moosez:
+            slicer.util.pip_install("https://github.com/Keyn34/MOOSE/archive/refs/heads/SlicerMOOSE.zip")
+            self.dependency_installed_moosez = self.is_package_installed("moosez")
+            self.dependency_installed_all = self.get_dependencies_install_status()
+
+    def install_pytorch(self):
+        if os.name == 'nt':
+            if not self.is_package_installed("PyTorchUtils"):
+                raise InstallError("This module requires PyTorch extension. Install it from the Extensions Manager.")
+
+            import PyTorchUtils
+            minimumTorchVersion = "1.12"
+            torchLogic = PyTorchUtils.PyTorchUtilsLogic()
+
+            if not torchLogic.torchInstalled():
+                torch = torchLogic.installTorch(askConfirmation=True, torchVersionRequirement=f">={minimumTorchVersion}")
+                if torch is None:
+                    raise InstallError("This module requires PyTorch extension. Install it from the Extensions Manager.")
+            else:
+                from packaging import version
+                if version.parse(torchLogic.torch.__version__) < version.parse(minimumTorchVersion):
+                    raise InstallError(
+                        f'PyTorch version {torchLogic.torch.__version__} is not compatible with this module.'
+                        + f' Minimum required version is {minimumTorchVersion}. You can use "PyTorch Util" module to install PyTorch'
+                        + f' with version requirement set to: >={minimumTorchVersion}')
+
+        else:
+            slicer.util.pip_install("torch")
+
+        self.dependency_installed_pytorch = self.is_package_installed("torch")
+        self.dependency_installed_all = self.get_dependencies_install_status()
+
+    def install_all_dependencies(self):
+        self.install_pytorch()
+        self.install_moosez()
+
+    def get_dependencies_install_status(self) -> bool:
+        if not self.dependency_installed_moosez:
+            return False
+
+        if not self.dependency_installed_pytorch:
+            return False
+
+        return True
 
 
 class MOOSEWidget(ScriptedLoadableModuleWidget):
@@ -53,67 +117,27 @@ class MOOSEWidget(ScriptedLoadableModuleWidget):
         self.ui.selector_output_volume.setMRMLScene(slicer.mrmlScene)
         self.ui.selector_output_volume.connect("currentNodeChanged(vtkMRMLNode*)", self.ui.button_segmentation_show.setSegmentationNode)
 
+        self.dependency_manager = DependencyManager()
         self.update_gui(True)
 
         self.logic = MOOSELogic()
         self.logic.status_callback = self.update_status_panel
 
     def update_gui(self, enabled: bool = True):
-        self.ui.selector_input_volume.setEnabled(enabled and self.dependencies_installed())
-        self.ui.button_segmentation_run.setEnabled(enabled and self.dependencies_installed())
-        self.ui.selector_models.setEnabled(enabled and self.dependencies_installed())
-        self.ui.button_install_dependencies.setEnabled(enabled and (not self.dependencies_installed()))
+        self.ui.selector_input_volume.setEnabled(enabled and self.dependency_manager.dependency_installed_all)
+        self.ui.button_segmentation_run.setEnabled(enabled and self.dependency_manager.dependency_installed_all)
+        self.ui.selector_models.setEnabled(enabled and self.dependency_manager.dependency_installed_all)
+        self.ui.button_install_dependencies.setEnabled(enabled and (not self.dependency_manager.dependency_installed_all))
         slicer.app.processEvents()
-
-    def is_package_installed(self, package_name: str) -> bool:
-        if importlib.util.find_spec(package_name) is not None:
-            return True
-        else:
-            return False
-
-    def install_pytorch(self):
-        if os.name == 'nt':
-            if not self.is_package_installed('PyTorchUtils'):
-                raise InstallError("This module requires PyTorch extension. Install it from the Extensions Manager.")
-
-            import PyTorchUtils
-            minimumTorchVersion = "1.12"
-            torchLogic = PyTorchUtils.PyTorchUtilsLogic()
-
-            if not torchLogic.torchInstalled():
-                self.update_status_panel('PyTorch Python package is required. Installing... (it may take several minutes)')
-                torch = torchLogic.installTorch(askConfirmation=True, torchVersionRequirement=f">={minimumTorchVersion}")
-                if torch is None:
-                    raise InstallError("This module requires PyTorch extension. Install it from the Extensions Manager.")
-            else:
-                from packaging import version
-                if version.parse(torchLogic.torch.__version__) < version.parse(minimumTorchVersion):
-                    raise InstallError(
-                        f'PyTorch version {torchLogic.torch.__version__} is not compatible with this module.'
-                        + f' Minimum required version is {minimumTorchVersion}. You can use "PyTorch Util" module to install PyTorch'
-                        + f' with version requirement set to: >={minimumTorchVersion}')
-
-        else:
-            self.update_status_panel('PyTorch Python package is required. Installing... (it may take several minutes)')
-            slicer.util.pip_install("torch")
-
-    def dependencies_installed(self) -> bool:
-        if not self.is_package_installed("torch"):
-            return False
-
-        if not self.is_package_installed("moosez"):
-            return False
-
-        return True
 
     def button_install_dependencies_clicked(self):
         self.update_gui(False)
-        if self.dependencies_installed():
+        if self.dependency_manager.dependency_installed_all:
             self.update_status_panel("Dependencies already installed.")
         else:
             self.update_status_panel("Installing dependencies...")
-            self.install_pytorch()
-            slicer.util.pip_install("https://github.com/Keyn34/MOOSE/archive/refs/heads/SlicerMOOSE.zip")
+            self.update_status_panel("This might take a while.")
+            self.dependency_manager.install_all_dependencies()
             self.update_status_panel("Dependencies installed successfully.")
         self.update_gui(True)
 
@@ -150,16 +174,26 @@ class MOOSEWidget(ScriptedLoadableModuleWidget):
         self.update_gui(True)
 
     def button_model_folder_open_clicked(self):
+        if not self.logic.models_directory:
+            slicer.util.messageBox("No models have been downloaded yet. Run MOOSE at least once to display the model cache.")
+            return
+
         if not os.path.exists(self.logic.models_directory):
             os.makedirs(self.logic.models_directory)
         qt.QDesktopServices().openUrl(qt.QUrl.fromLocalFile(self.logic.models_directory))
 
     def button_model_folder_clear_clicked(self):
+        if not self.logic.models_directory:
+            slicer.util.messageBox("No models have been downloaded yet.")
+            return
+
         if not os.path.exists(self.logic.models_directory):
             slicer.util.messageBox("There are no downloaded models.")
             return
+
         if not slicer.util.confirmOkCancelDisplay("All downloaded model files will be deleted. The files will be automatically downloaded again as needed."):
             return
+
         self.logic.clear_models_directory_path()
         slicer.util.messageBox("Downloaded models are deleted.")
 
@@ -198,9 +232,8 @@ class MOOSEWidget(ScriptedLoadableModuleWidget):
 
 class MOOSELogic:
     def __init__(self):
-        from moosez.system import MODELS_DIRECTORY_PATH
         self.status_callback = None
-        self.models_directory = MODELS_DIRECTORY_PATH
+        self.models_directory = None
         self.moosez = os.path.join(sysconfig.get_path('scripts'), self.format_executable_name("moosez"))
         self.python_slicer = shutil.which("PythonSlicer")
 
@@ -214,6 +247,10 @@ class MOOSELogic:
             cmd = [self.python_slicer, self.moosez, "--main_directory", moose_folder, "--model_names", model]
             result = slicer.util.launchConsoleProcess(cmd)
             self.forward_process_status(result)
+
+            if not self.models_directory:
+                from moosez.system import MODELS_DIRECTORY_PATH
+                self.models_directory = MODELS_DIRECTORY_PATH
 
             potential_output_paths = glob.glob(os.path.join(subject_folder, "moosez-*", "segmentations", "*.nii.gz"))
             if not potential_output_paths:
@@ -295,15 +332,19 @@ class MOOSETest(ScriptedLoadableModuleTest):
         """Test MOOSE functionality."""
         self.delayDisplay("Starting MOOSE Integration Test")
 
-        # Load a sample volume (replace with the actual path or use Slicer sample data)
-
         sampleVolume_path = self.download_sample_data()
         sampleVolume = slicer.util.loadVolume(sampleVolume_path)
 
         self.delayDisplay('Loaded test data set')
         self.assertIsNotNone(sampleVolume, "Failed to load sample volume")
         print("######################################################")
-        print("Volume Loaded successfully")
+        print("Volume loaded successfully")
+
+        self.delayDisplay('Installing dependencies')
+        dependency_manager = DependencyManager(True)
+        self.assertIsNotNone(dependency_manager, "Could not install dependencies")
+        print("######################################################")
+        print("Dependencies installed successfully")
 
         # Set up MOOSE logic
         mooseLogic = MOOSELogic()
@@ -311,12 +352,10 @@ class MOOSETest(ScriptedLoadableModuleTest):
         print("######################################################")
         print("MOOSELogic created successfully")
 
-        # Prepare data
-
-
         # Run segmentation with a test model
         test_models = ["clin_ct_cardiac", "clin_ct_muscles", "clin_ct_organs", "clin_ct_peripheral_bones",
                        "clin_ct_ribs", "clin_ct_vertebrae"]
+        moose_folder = None
         for model in test_models:
             try:
                 self.delayDisplay("Preparing data for segmentation")
@@ -331,7 +370,7 @@ class MOOSETest(ScriptedLoadableModuleTest):
             print("######################################################")
             print(f"Infered model {model} successfully")
 
-        # Clean up
+        if moose_folder:
             import shutil
             shutil.rmtree(moose_folder)
         os.remove(sampleVolume_path)
@@ -340,7 +379,6 @@ class MOOSETest(ScriptedLoadableModuleTest):
         print("MOOSE test passed")
 
     def download_sample_data(self):
-
         download_directory = self.get_default_download_folder()
         URL = "https://enhance-pet.s3.eu-central-1.amazonaws.com/slicer_sample_data/sample_CT.nii.gz"
         download_file_name = os.path.basename(URL)
@@ -356,7 +394,6 @@ class MOOSETest(ScriptedLoadableModuleTest):
                 if chunk:
                     f.write(chunk)
         return download_file_path
-
 
     def get_default_download_folder(self):
         if os.name == 'nt':  # For Windows
