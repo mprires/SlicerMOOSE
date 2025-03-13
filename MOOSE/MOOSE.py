@@ -80,9 +80,6 @@ class DependencyManager:
                         + f' Minimum required version is {minimumTorchVersion}. You can use "PyTorch Util" module to install PyTorch'
                         + f' with version requirement set to: >={minimumTorchVersion}')
 
-        elif os.name == "darwin" or os.name == "posix":
-            slicer.util.pip_install("https://mytorch.s3.eu-central-1.amazonaws.com/torch-2.3.0a0%2Bgitffda73c-cp39-cp39-macosx_15_0_arm64.whl")
-
         else:
             slicer.util.pip_install("torch")
 
