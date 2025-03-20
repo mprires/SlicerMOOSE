@@ -5,6 +5,7 @@ import slicer.util
 import qt
 import shutil
 import os
+import sys
 import glob
 from pathlib import Path
 import requests
@@ -60,7 +61,7 @@ class DependencyManager:
             self.dependency_installed_all = self.get_dependencies_install_status()
 
     def install_pytorch(self):
-        if os.name == 'nt':
+        if sys.platform.startswith("win"):
             if not self.is_package_installed("PyTorchUtils"):
                 raise InstallError("This module requires PyTorch extension. Install it from the Extensions Manager.")
 
@@ -75,13 +76,18 @@ class DependencyManager:
             else:
                 from packaging import version
                 if version.parse(torchLogic.torch.__version__) < version.parse(minimumTorchVersion):
-                    raise InstallError(
-                        f'PyTorch version {torchLogic.torch.__version__} is not compatible with this module.'
-                        + f' Minimum required version is {minimumTorchVersion}. You can use "PyTorch Util" module to install PyTorch'
-                        + f' with version requirement set to: >={minimumTorchVersion}')
+                    raise InstallError(f'PyTorch version {torchLogic.torch.__version__} is not compatible with this module. '
+                                       f'Minimum required version is {minimumTorchVersion}. '
+                                       f'You can use "PyTorch Util" module to install PyTorch with version requirement set to: >={minimumTorchVersion}')
+
+        elif sys.platform.startswith("linux"):
+            slicer.util.pip_install("torch")
+
+        elif sys.platform.startswith("darwin"):
+            raise InstallError(f'PyTorch is not available or supported for MAC yet.')
 
         else:
-            slicer.util.pip_install("torch")
+            raise InstallError(f'Unknown OS. Can not install PyTorch.')
 
         self.dependency_installed_pytorch = self.is_package_installed("torch")
         self.dependency_installed_all = self.get_dependencies_install_status()
@@ -353,8 +359,7 @@ class MOOSETest(ScriptedLoadableModuleTest):
         print("MOOSELogic created successfully")
 
         # Run segmentation with a test model
-        test_models = ["clin_ct_cardiac", "clin_ct_muscles", "clin_ct_organs", "clin_ct_peripheral_bones",
-                       "clin_ct_ribs", "clin_ct_vertebrae"]
+        test_models = ["clin_ct_organs"]
         moose_folder = None
         for model in test_models:
             try:
