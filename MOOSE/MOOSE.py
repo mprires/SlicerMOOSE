@@ -2,6 +2,7 @@ import slicer
 from slicer.ScriptedLoadableModule import ScriptedLoadableModule, ScriptedLoadableModuleWidget, ScriptedLoadableModuleTest
 import slicer.util
 
+import json
 import qt
 import shutil
 import os
@@ -11,7 +12,7 @@ from pathlib import Path
 import requests
 import sysconfig
 import importlib.util
-from typing import Union
+from typing import Union, Tuple, Dict
 
 
 class MOOSE(ScriptedLoadableModule):
@@ -56,7 +57,7 @@ class DependencyManager:
 
     def install_moosez(self):
         if not self.dependency_installed_moosez:
-            slicer.util.pip_install("https://github.com/Keyn34/MOOSE/archive/refs/heads/SlicerMOOSE.zip")
+            slicer.util.pip_install("moosez")
             self.dependency_installed_moosez = self.is_package_installed("moosez")
             self.dependency_installed_all = self.get_dependencies_install_status()
 
@@ -159,7 +160,7 @@ class MOOSEWidget(ScriptedLoadableModuleWidget):
 
         self.update_status_panel('Starting MOOSE segmentation.')
         moose_folder, subject_folder = self.logic.prepare_data(self.ui.selector_input_volume.currentNode())
-        segmentation_file = self.logic.run_segmentation(moose_folder, subject_folder, model)
+        segmentation_file, label_indices = self.logic.run_segmentation(moose_folder, subject_folder, model)
 
         if not segmentation_file:
             slicer.util.errorDisplay("Could not infer segmentation from provided dataset. Check the FOV.")
@@ -168,7 +169,6 @@ class MOOSEWidget(ScriptedLoadableModuleWidget):
             segmentation_node = slicer.util.loadSegmentation(segmentation_file, properties=properties)
             self.ui.selector_output_volume.setCurrentNode(segmentation_node)
             segmentation = segmentation_node.GetSegmentation()
-            label_indices = self.logic.get_label_indices(model)
             for segmentIndex in range(segmentation.GetNumberOfSegments()):
                 segmentID = segmentation.GetNthSegmentID(segmentIndex)
                 segmentID_numeric = int(segmentID.replace("Segment_", ""))
@@ -184,9 +184,8 @@ class MOOSEWidget(ScriptedLoadableModuleWidget):
             slicer.util.messageBox("No models have been downloaded yet. Run MOOSE at least once to display the model cache.")
             return
 
-        if not os.path.exists(self.logic.models_directory):
-            os.makedirs(self.logic.models_directory)
-        qt.QDesktopServices().openUrl(qt.QUrl.fromLocalFile(self.logic.models_directory))
+        if os.path.exists(self.logic.models_directory):
+            qt.QDesktopServices().openUrl(qt.QUrl.fromLocalFile(self.logic.models_directory))
 
     def button_model_folder_clear_clicked(self):
         if not self.logic.models_directory:
@@ -195,6 +194,10 @@ class MOOSEWidget(ScriptedLoadableModuleWidget):
 
         if not os.path.exists(self.logic.models_directory):
             slicer.util.messageBox("There are no downloaded models.")
+            return
+
+        if len(os.listdir(self.logic.models_directory)) == 0:
+            slicer.util.messageBox("The models directory is empty.")
             return
 
         if not slicer.util.confirmOkCancelDisplay("All downloaded model files will be deleted. The files will be automatically downloaded again as needed."):
@@ -240,6 +243,7 @@ class MOOSELogic:
     def __init__(self):
         self.status_callback = None
         self.models_directory = None
+        self.check_models_directory_status()
         self.moosez = os.path.join(sysconfig.get_path('scripts'), self.format_executable_name("moosez"))
         self.python_slicer = shutil.which("PythonSlicer")
 
@@ -247,26 +251,43 @@ class MOOSELogic:
     def format_executable_name(executable_name: str) -> str:
         return executable_name + ".exe" if os.name == "nt" else executable_name
 
-    def run_segmentation(self, moose_folder: str, subject_folder: str, model: str) -> Union[str, None]:
+
+    def check_models_directory_status(self):
+        if not self.models_directory:
+            from moosez.system import MODELS_DIRECTORY_PATH
+            if os.path.exists(MODELS_DIRECTORY_PATH):
+                self.models_directory = MODELS_DIRECTORY_PATH
+            else:
+                self.models_directory = None
+
+    def run_segmentation(self, moose_folder: str, subject_folder: str, model: str) -> Union[Tuple[str, Dict], None]:
         try:
             self.forward_status(f"Running moosez for model: {model}")
             cmd = [self.python_slicer, self.moosez, "--main_directory", moose_folder, "--model_names", model]
             result = slicer.util.launchConsoleProcess(cmd)
             self.forward_process_status(result)
 
-            if not self.models_directory:
-                from moosez.system import MODELS_DIRECTORY_PATH
-                self.models_directory = MODELS_DIRECTORY_PATH
+            self.check_models_directory_status()
 
-            potential_output_paths = glob.glob(os.path.join(subject_folder, "moosez-*", "segmentations", "*.nii.gz"))
-            if not potential_output_paths:
-                return None
+            potential_segmentation_paths = glob.glob(os.path.join(subject_folder, "moosez-*", "segmentations", "*.nii.gz"))
+            potential_JSON_paths = glob.glob(os.path.join(subject_folder, "moosez-*", "segmentations", "*.json"))
 
-            expected_output_path = potential_output_paths[0]
-            if not os.path.exists(expected_output_path):
-                raise FileNotFoundError(f"Segmentation file not found: {expected_output_path}")
+            if not potential_segmentation_paths or not potential_JSON_paths:
+                raise FileNotFoundError(f"No segmentation or JSON files found. ")
 
-            return expected_output_path
+            segmentation_file_path = potential_segmentation_paths[0]
+            if not os.path.exists(segmentation_file_path):
+                raise FileNotFoundError(f"Segmentation does not exist: {segmentation_file_path}")
+
+            generated_JSON_path = potential_JSON_paths[0]
+            if not os.path.exists(generated_JSON_path):
+                raise FileNotFoundError(f"JSON file does not exist: {generated_JSON_path}")
+
+            with open(generated_JSON_path) as JSON_file:
+                JSON_content = json.load(JSON_file)
+            segmentation_label_indices = {int(label_index): entry["name"] for label_index, entry in JSON_content.get("organ_indices", {}).items()}
+
+            return segmentation_file_path, segmentation_label_indices
 
         except Exception as e:
             slicer.util.errorDisplay(f"Error during MOOSE segmentation: {e}")
@@ -288,12 +309,7 @@ class MOOSELogic:
         if os.path.exists(self.models_directory):
             shutil.rmtree(self.models_directory)
             self.forward_status(f"Model directory cleared.")
-
-    def get_label_indices(self, model_identifier):
-        from moosez.models import Model
-        from moosez.system import OutputManager
-        model = Model(model_identifier, OutputManager(False, False))
-        return model.organ_indices
+        self.check_models_directory_status()
 
     def forward_status(self, text):
         if self.status_callback:
