@@ -57,7 +57,7 @@ class DependencyManager:
 
     def install_moosez(self):
         if not self.dependency_installed_moosez:
-            slicer.util.pip_install("moosez>=3.1.0")
+            slicer.util.pip_install("moosez>=3.1.1")
             self.dependency_installed_moosez = self.is_package_installed("moosez")
             self.dependency_installed_all = self.get_dependencies_install_status()
 
