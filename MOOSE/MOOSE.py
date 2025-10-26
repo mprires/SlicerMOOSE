@@ -57,7 +57,7 @@ class DependencyManager:
 
     def install_moosez(self):
         if not self.dependency_installed_moosez:
-            slicer.util.pip_install("moosez>=3.1.0")
+            slicer.util.pip_install("moosez>=3.1.1")
             self.dependency_installed_moosez = self.is_package_installed("moosez")
             self.dependency_installed_all = self.get_dependencies_install_status()
 
@@ -138,46 +138,57 @@ class MOOSEWidget(ScriptedLoadableModuleWidget):
         slicer.app.processEvents()
 
     def button_install_dependencies_clicked(self):
-        self.update_gui(False)
-        if self.dependency_manager.dependency_installed_all:
-            self.update_status_panel("Dependencies already installed.")
-        else:
-            self.update_status_panel("Installing dependencies...")
-            self.update_status_panel("This might take a while.")
-            self.dependency_manager.install_all_dependencies()
-            self.update_status_panel("Dependencies installed successfully.")
-        self.update_gui(True)
+        with slicer.util.tryWithErrorDisplay("Installing dependencies failed.", waitCursor=True):
+
+            self.update_gui(False)
+            try:
+                if self.dependency_manager.dependency_installed_all:
+                    self.update_status_panel("Dependencies already installed.")
+                else:
+                    self.update_status_panel("Installing dependencies...")
+                    self.update_status_panel("This might take a while.")
+                    self.dependency_manager.install_all_dependencies()
+                    self.update_status_panel("Dependencies installed successfully.")
+
+            finally:
+                self.update_gui(True)
 
     def button_segmentation_run_clicked(self):
-        self.update_gui(False)
+        with slicer.util.tryWithErrorDisplay("Processing Failed. Check logs for more information.", waitCursor=True):
 
-        input_node = self.ui.selector_input_volume.currentNode()
-        model = self.ui.selector_models.currentText
-        if not input_node or not model:
-            slicer.util.errorDisplay("Please select an input volume and model.")
-            self.update_gui(True)
-            return
+            self.update_gui(False)
+            try:
+                input_node = self.ui.selector_input_volume.currentNode()
+                model = self.ui.selector_models.currentText
+                if not input_node or not model:
+                    raise RuntimeError("Please select an input volume and model.")
 
-        self.update_status_panel('Starting MOOSE segmentation.')
-        moose_folder, subject_folder = self.logic.prepare_data(self.ui.selector_input_volume.currentNode())
-        segmentation_file, label_indices = self.logic.run_segmentation(moose_folder, subject_folder, model)
+                self.update_status_panel('Starting MOOSE segmentation.', clear=True)
+                moose_folder, subject_folder = self.logic.prepare_data(self.ui.selector_input_volume.currentNode())
+                segmentation_file, label_indices = self.logic.run_segmentation(moose_folder, subject_folder, model)
 
-        if not segmentation_file:
-            slicer.util.errorDisplay("Could not infer segmentation from provided dataset. Check the FOV.")
-        else:
-            properties = {"name": f"{input_node.GetName()}_{model}_segmentation"}
-            segmentation_node = slicer.util.loadSegmentation(segmentation_file, properties=properties)
-            self.ui.selector_output_volume.setCurrentNode(segmentation_node)
-            segmentation = segmentation_node.GetSegmentation()
-            for segmentIndex in range(segmentation.GetNumberOfSegments()):
-                segmentID = segmentation.GetNthSegmentID(segmentIndex)
-                segmentID_numeric = int(segmentID.replace("Segment_", ""))
-                segment = segmentation.GetSegment(segmentID)
-                newName = label_indices[segmentID_numeric]
-                segment.SetName(newName)
+                if not segmentation_file:
+                    raise RuntimeError("Could not infer segmentation from provided dataset. Check the FOV.")
 
-        shutil.rmtree(moose_folder)
-        self.update_gui(True)
+                properties = {"name": f"{input_node.GetName()}_{model}_segmentation"}
+                segmentation_node = slicer.util.loadSegmentation(segmentation_file, properties=properties)
+                self.ui.selector_output_volume.setCurrentNode(segmentation_node)
+                segmentation = segmentation_node.GetSegmentation()
+                for segmentIndex in range(segmentation.GetNumberOfSegments()):
+                    segmentID = segmentation.GetNthSegmentID(segmentIndex)
+                    segmentID_numeric = int(segmentID.replace("Segment_", ""))
+                    segment = segmentation.GetSegment(segmentID)
+                    newName = label_indices[segmentID_numeric]
+                    segment.SetName(newName)
+
+                shutil.rmtree(moose_folder)
+
+            except Exception as e:
+                self.update_status_panel('Segmentation failed.')
+                raise
+
+            finally:
+                self.update_gui(True)
 
     def button_model_folder_open_clicked(self):
         if not self.logic.models_directory:
@@ -206,11 +217,15 @@ class MOOSEWidget(ScriptedLoadableModuleWidget):
         self.logic.clear_models_directory_path()
         slicer.util.messageBox("Downloaded models are deleted.")
 
-    def update_status_panel(self, text):
+    def update_status_panel(self, text, clear: bool = False):
         if not text:
             return
 
+        if clear:
+            self.ui.text_edit_status_panel.clear()
+
         current_text = self.ui.text_edit_status_panel.toPlainText()
+
         lines = current_text.split('\n') if current_text else []
 
         if lines:
@@ -261,36 +276,32 @@ class MOOSELogic:
                 self.models_directory = None
 
     def run_segmentation(self, moose_folder: str, subject_folder: str, model: str) -> Union[Tuple[str, Dict], None]:
-        try:
-            self.forward_status(f"Running moosez for model: {model}")
-            cmd = [self.python_slicer, self.moosez, "--main_directory", moose_folder, "--model_names", model]
-            result = slicer.util.launchConsoleProcess(cmd)
-            self.forward_process_status(result)
+        self.forward_status(f"Running moosez for model: {model}")
+        cmd = [self.python_slicer, self.moosez, "--main_directory", moose_folder, "--model_names", model]
+        result = slicer.util.launchConsoleProcess(cmd)
+        self.forward_process_status(result)
 
-            self.check_models_directory_status()
+        self.check_models_directory_status()
 
-            potential_segmentation_paths = glob.glob(os.path.join(subject_folder, "moosez-*", "segmentations", "*.nii.gz"))
-            potential_JSON_paths = glob.glob(os.path.join(subject_folder, "moosez-*", "segmentations", "*.json"))
+        potential_segmentation_paths = glob.glob(os.path.join(subject_folder, "moosez-*", "segmentations", "*.nii.gz"))
+        potential_JSON_paths = glob.glob(os.path.join(subject_folder, "moosez-*", "segmentations", "*.json"))
 
-            if not potential_segmentation_paths or not potential_JSON_paths:
-                raise FileNotFoundError(f"No segmentation or JSON files found. ")
+        if not potential_segmentation_paths or not potential_JSON_paths:
+            raise FileNotFoundError(f"No segmentation or JSON files found. ")
 
-            segmentation_file_path = potential_segmentation_paths[0]
-            if not os.path.exists(segmentation_file_path):
-                raise FileNotFoundError(f"Segmentation does not exist: {segmentation_file_path}")
+        segmentation_file_path = potential_segmentation_paths[0]
+        if not os.path.exists(segmentation_file_path):
+            raise FileNotFoundError(f"Segmentation does not exist: {segmentation_file_path}")
 
-            generated_JSON_path = potential_JSON_paths[0]
-            if not os.path.exists(generated_JSON_path):
-                raise FileNotFoundError(f"JSON file does not exist: {generated_JSON_path}")
+        generated_JSON_path = potential_JSON_paths[0]
+        if not os.path.exists(generated_JSON_path):
+            raise FileNotFoundError(f"JSON file does not exist: {generated_JSON_path}")
 
-            with open(generated_JSON_path) as JSON_file:
-                JSON_content = json.load(JSON_file)
-            segmentation_label_indices = {int(label_index): entry["name"] for label_index, entry in JSON_content.get("organ_indices", {}).items()}
+        with open(generated_JSON_path) as JSON_file:
+            JSON_content = json.load(JSON_file)
+        segmentation_label_indices = {int(label_index): entry["name"] for label_index, entry in JSON_content.get("organ_indices", {}).items()}
 
-            return segmentation_file_path, segmentation_label_indices
-
-        except Exception as e:
-            slicer.util.errorDisplay(f"Error during MOOSE segmentation: {e}")
+        return segmentation_file_path, segmentation_label_indices
 
     def prepare_data(self, inputVolume):
         self.forward_status(f"Preparing data...")
