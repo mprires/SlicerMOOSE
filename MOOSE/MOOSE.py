@@ -50,14 +50,22 @@ class DependencyManager:
         self.dependency_installed_all = self.get_dependencies_install_status()
 
     def is_package_installed(self, package_name: str) -> bool:
-        if importlib.util.find_spec(package_name) is not None:
-            return True
-        else:
-            return False
+        # A leftover empty package folder (e.g. moosez/ left holding only its model cache
+        # after a partial uninstall) is reported by find_spec as a namespace package, which
+        # would make this return True and cause the install to be silently skipped. Require a
+        # real module origin so only genuinely importable packages count as installed.
+        spec = importlib.util.find_spec(package_name)
+        return spec is not None and spec.origin is not None
 
     def install_moosez(self):
         if not self.dependency_installed_moosez:
-            slicer.util.pip_install("moosez>=3.1.1")
+            requirements = "moosez>=3.1.1"
+            if sys.platform.startswith("darwin"):
+                # moosez pulls in the latest NumPy, but torch 2.2.2 (the only macOS wheel)
+                # needs NumPy 1.x. Constrain it here too so installing moosez does not
+                # upgrade NumPy back to 2.x and break torch.
+                requirements += ' "numpy<2"'
+            slicer.util.pip_install(requirements)
             self.dependency_installed_moosez = self.is_package_installed("moosez")
             self.dependency_installed_all = self.get_dependencies_install_status()
 
@@ -85,7 +93,12 @@ class DependencyManager:
             slicer.util.pip_install("torch")
 
         elif sys.platform.startswith("darwin"):
-            raise InstallError(f'PyTorch is not available or supported for MAC yet.')
+            # Slicer's macOS build is x86_64 (no Apple Silicon build), and 2.2.2 is the last
+            # torch release with an x86_64 macOS wheel. It runs CPU-only here (MPS needs torch
+            # 2.3+, which has no x86_64 wheel), which is why run_segmentation forces CPU on Mac.
+            # torch 2.2.2 is compiled against NumPy 1.x and fails with NumPy 2.x
+            # ("RuntimeError: Numpy is not available"), so keep NumPy below 2.
+            slicer.util.pip_install('torch==2.2.2 "numpy<2"')
 
         else:
             raise InstallError(f'Unknown OS. Can not install PyTorch.')
@@ -269,7 +282,14 @@ class MOOSELogic:
 
     def check_models_directory_status(self):
         if not self.models_directory:
-            from moosez.system import MODELS_DIRECTORY_PATH
+            try:
+                from moosez.system import MODELS_DIRECTORY_PATH
+            except ImportError:
+                # moosez may not be installed yet (e.g. the module is opened before
+                # "Install Dependencies" has run). The models directory only exists once
+                # moosez is present, so leave it unset instead of failing module setup.
+                self.models_directory = None
+                return
             if os.path.exists(MODELS_DIRECTORY_PATH):
                 self.models_directory = MODELS_DIRECTORY_PATH
             else:
@@ -277,7 +297,18 @@ class MOOSELogic:
 
     def run_segmentation(self, moose_folder: str, subject_folder: str, model: str) -> Union[Tuple[str, Dict], None]:
         self.forward_status(f"Running moosez for model: {model}")
-        cmd = [self.python_slicer, self.moosez, "--main_directory", moose_folder, "--model_names", model]
+        if sys.platform.startswith("darwin"):
+            # Slicer ships an x86_64 (Rosetta) build on macOS, so torch is capped at 2.2.2,
+            # whose MPS backend does not implement Conv3D. moosez would still auto-select MPS
+            # and crash with "Conv3D is not supported on MPS", so disable MPS detection to make
+            # moosez fall back to CPU. This covers Apple Silicon (where MPS is wrongly reported
+            # as available) as well as Intel Macs (already CPU-only).
+            cmd = [self.python_slicer, "-c",
+                   "import torch; torch.backends.mps.is_available = lambda: False; "
+                   "from moosez.moosez import main; main()",
+                   "--main_directory", moose_folder, "--model_names", model]
+        else:
+            cmd = [self.python_slicer, self.moosez, "--main_directory", moose_folder, "--model_names", model]
         result = slicer.util.launchConsoleProcess(cmd)
         self.forward_process_status(result)
 
