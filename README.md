@@ -9,6 +9,7 @@ MOOSE (Multi-organ objective segmentation) is a data-centric AI solution that ge
 2. When you use the extension the first time, only the `Install Dependencies` button will be enabled. Please click it to perform the initial setup of dependencies, which includes PyTorch and MOOSE.
    * For Windows users: Please make sure that the PyTorch extension is also installed. 
    * For Linux/Unix users: The PyTorch extension is not required, as native `torch` works in most cases. 
+   * For macOS users: The PyTorch extension is not required. Segmentation runs on the **CPU** only — Slicer's macOS build is Intel/x86_64 (even on Apple Silicon, where it runs under Rosetta), so GPU (MPS) acceleration is unavailable and the CPU is used automatically. Expect the longer CPU compute times noted below. 
    * The installation will take a while, and it is normal that 3DSlicer might become unresponsive during the installation.
 3. After a successful installation, the `Input Volume` and `Model` selector section will be enabled. 
 4. Select a volume (which has to be a CT image) and a model and click on `Run Segmentation` and wait for the process to finish.
