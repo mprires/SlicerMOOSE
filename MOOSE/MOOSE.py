@@ -3,6 +3,7 @@ from slicer.ScriptedLoadableModule import ScriptedLoadableModule, ScriptedLoadab
 import slicer.util
 
 import json
+import logging
 import qt
 import shutil
 import os
@@ -408,10 +409,18 @@ class MOOSETest(ScriptedLoadableModuleTest):
         # factory all extensions are tested against one shared Python, and installing
         # torch 2.2.2 with "numpy<2" (macOS) downgrades NumPy for every extension tested
         # after this one. Run the segmentation only where the dependencies are already there.
-        if slicer.app.testingEnabled() and not DependencyManager(False).dependency_installed_all:
-            self.delayDisplay("torch/moosez not installed; skipping segmentation (no pip install while testing)")
-            os.remove(sampleVolume_path)
-            return
+        # If torch and moosez are already installed, the full test runs as before.
+        if slicer.app.testingEnabled():
+            dependencies = DependencyManager(False)
+            if not dependencies.dependency_installed_all:
+                missing = [name for name, installed in (("torch", dependencies.dependency_installed_pytorch),
+                                                        ("moosez", dependencies.dependency_installed_moosez)) if not installed]
+                message = (f"MOOSE test: {', '.join(missing)} not installed and not pip-installed while Slicer is "
+                           "running with --testing; skipping the segmentation part of this test.")
+                logging.warning(message)
+                self.delayDisplay(message)
+                os.remove(sampleVolume_path)
+                return
 
         self.delayDisplay('Installing dependencies')
         dependency_manager = DependencyManager(True)
